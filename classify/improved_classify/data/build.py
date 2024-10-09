@@ -47,14 +47,14 @@ def build_loader(config):
         num_workers=8,
         pin_memory=True,
     )
-    if hasattr(config.DATA.AUG, "MIXUP"):
+    if hasattr(config.DATA, "MIXUP"):
         mixup_fn = Mixup(
-            mixup_alpha=config.DATA.AUG.MIXUP,
-            cutmix_alpha=config.DATA.AUG.CUTMIX,
-            cutmix_minmax=config.DATA.AUG.CUTMIX_MINMAX,
-            prob=config.DATA.AUG.MIXUP_PROB,
-            switch_prob=config.DATA.AUG.MIXUP_SWITCH_PROB,
-            mode=config.DATA.AUG.MIXUP_MODE,
+            mixup_alpha=config.DATA.MIXUP.mixup,
+            cutmix_alpha=config.DATA.MIXUP.cutmix,
+            cutmix_minmax=config.DATA.MIXUP.cutminmax,
+            prob=config.DATA.MIXUP.mixup_prob,
+            switch_prob=config.DATA.MIXUP.mixup_switch_prob,
+            mode=config.DATA.MIXUP.mixup_mode,
             label_smoothing=config.TRAIN.label_smoothing,
             num_classes=config.MODEL.classes,
         )

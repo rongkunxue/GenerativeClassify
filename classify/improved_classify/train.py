@@ -61,6 +61,23 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer, epoch):
         )
     return 0
 
+def train_epoch_mixup(accelerator, model, criterion, data_loader, optimizer, epoch,mixup_fn):
+    model.train()
+    for samples, targets in track(
+        data_loader, disable=not accelerator.is_local_main_process
+    ):
+        samples, targets = mixup_fn(samples, targets)
+        outputs = model(samples)
+        loss = criterion(outputs, targets)
+        optimizer.zero_grad()
+        accelerator.backward(loss)
+        optimizer.step()
+        wandb.log(
+            {"train/loss": loss, "train/epoch": epoch},
+            commit=True,
+        )
+    return 0
+
 def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
     model.train()
     for samples, targets in track(
@@ -265,6 +282,8 @@ def train(config, accelerator):
                         optimizer=None,
                         prefix="DiffusionModel_Pretrain",
                 )
+                
+        
 
         if config.TRAIN.loss_function == "CrossEntropy":
             criterion = torch.nn.CrossEntropyLoss()
@@ -290,7 +309,10 @@ def train(config, accelerator):
         for epoch in range(config.TRAIN.iteration):
             if epoch % config.TEST.eval_freq == 0:
                 validate(accelerator, model, data_loader_val, criterion, epoch)
-            train_epoch(accelerator, model, criterion, data_loader_train, optimizer, epoch)
+            if mixup_fn is not None:
+                train_epoch_mixup(accelerator, model, criterion, data_loader_train, optimizer, epoch,mixup_fn)
+            else:
+                train_epoch(accelerator, model, criterion, data_loader_train, optimizer, epoch)
 
 
 
