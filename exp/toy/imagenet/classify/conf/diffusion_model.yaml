@@ -1,0 +1,16 @@
+diffusion_model:
+  device: ${device}
+  x_size: [3, 64, 64]
+  alpha: 1.0
+  solver:
+    type: ODESolver
+    args:
+      library: torchdiffeq_adjoint
+  path:
+    type: gvp
+  model:
+    type: velocity_function
+    args:
+      backbone:
+        type: MyModule
+        args: {}

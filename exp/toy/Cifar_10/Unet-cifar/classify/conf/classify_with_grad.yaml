@@ -1,0 +1,16 @@
+defaults:
+  -  diffusion_model
+
+device:  ${device}
+parameter:
+  training_loss_type: flow_matching
+  lr: 5e-4
+  iterations: 200000
+  batch_size: 125
+  eval_freq: 100
+  checkpoint_freq: 100
+  dataset_path: /mnt/nfs/xuerongkun/dataset/Cifar
+  checkpoint_path: /mnt/nfs/xuerongkun/checkpoint/Cifar
+  video_save_path: /root/generativeencoder/exp/toy/Cifar_10/Unet-cifar/video
+  accelerate_checkpoint_path: /root/generativeencoder/exp/toy/Cifar_10/Unet-cifar/data
+  device: ${device}
