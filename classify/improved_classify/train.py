@@ -321,6 +321,16 @@ def train(config, accelerator):
                 train_epoch_mixup(accelerator, model, criterion, data_loader_train, optimizer, epoch,mixup_fn)
             else:
                 train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
+            if (epoch + 1) % config.TEST.checkpoint_freq == 0:
+                if accelerator.is_local_main_process:
+                    save_model(
+                        config.DATA.checkpoint_path,
+                        model,
+                        optimizer,
+                        epoch,
+                        "GenerativeClassify",
+                    )
+                    
 
 
 
