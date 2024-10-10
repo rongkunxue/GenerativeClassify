@@ -44,9 +44,10 @@ def imagenet_save(img, save_path="./", iteration=0, prefix="img"):
     save_path = os.path.join(save_path, f"{prefix}_{iteration}.png")
     plt.savefig(save_path)
 
-def train_epoch(accelerator, model, criterion, data_loader, optimizer, epoch):
+def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_scheduler, epoch):
     model.train()
-    for samples, targets in track(
+    num_steps=len(data_loader)
+    for idx ,(samples, targets) in track(
         data_loader, disable=not accelerator.is_local_main_process
     ):
         outputs = model(samples)
@@ -54,6 +55,7 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer, epoch):
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
+        lr_scheduler.step_update(epoch * num_steps + idx)
         # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
         wandb.log(
             {"train/loss": loss, "train/epoch": epoch},
@@ -172,7 +174,7 @@ def accuracy(output, target, topk=(1,)):
         return res
 
 
-def validate(accelerator, model, val_loader, criterion, epoch):
+def validate(accelerator, model, val_loader, criterion, epoch,mixup_fn=None):
     losses = AverageMeter("Loss", ":.4e")
     top1 = AverageMeter("Acc@1", ":6.2f")
     top5 = AverageMeter("Acc@5", ":6.2f")
@@ -181,9 +183,14 @@ def validate(accelerator, model, val_loader, criterion, epoch):
     with torch.no_grad():
         for idx, (images, targets) in enumerate(val_loader):
             # compute output
+            if mixup_fn is not None:
+                images, targets_mixup=mixup_fn(images, targets)
+            else :
+                targets_mixup=targets
             outputs = model(images)
+            loss = criterion(outputs, targets_mixup)
+            
             outputs, targets = accelerator.gather_for_metrics((outputs, targets))
-            loss = criterion(outputs, targets)
             # measure accuracy and record loss
             acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
             losses.update(loss.item(), outputs.size(0))
@@ -271,6 +278,7 @@ def train(config, accelerator):
         data_loader_train, data_loader_val, mixup_fn = build_loader(config)
         model = build_model(config)
         optimizer = build_optimizer(config, model)
+        lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
         
         if (
                 hasattr(config.DATA, "checkpoint_path")
@@ -308,11 +316,11 @@ def train(config, accelerator):
         )
         for epoch in range(config.TRAIN.iteration):
             if epoch % config.TEST.eval_freq == 0:
-                validate(accelerator, model, data_loader_val, criterion, epoch)
+                validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
             if mixup_fn is not None:
                 train_epoch_mixup(accelerator, model, criterion, data_loader_train, optimizer, epoch,mixup_fn)
             else:
-                train_epoch(accelerator, model, criterion, data_loader_train, optimizer, epoch)
+                train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
 
 
 

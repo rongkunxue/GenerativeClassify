@@ -15,5 +15,18 @@ def build_optimizer(config, model):
             optimizer = torch.optim.Adam(
                 model.grlEncoder.diffusionModel.model.parameters(),
                 lr=config.TRAIN.lr,
-            )
+            )    
+    if config.TRAIN.optimizer_type == "adamw":
+        optimizer = torch.optim.AdamW(
+            [
+                    {"params": model.grlHead.parameters()},
+                    {"params": model.grlEncoder.diffusionModel.model.parameters()},
+            ],
+            eps=config.TRAIN.OPTIMIZER.eps, betas=config.TRAIN.OPTIMIZER.betas,
+            lr=config.TRAIN.lr, weight_decay=config.TRAIN.OPTIMIZER.weight_decay)
     return optimizer
+
+
+
+
+

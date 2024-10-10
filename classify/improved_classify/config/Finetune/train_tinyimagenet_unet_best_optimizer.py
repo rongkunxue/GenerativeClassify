@@ -8,7 +8,7 @@ def make_config(device):
     type="GenerativeClassifyUNet"
     classes = 200
     image_size = 64
-    project_name = "Classify_Tiny_imagent_mixup"
+    project_name = "Classify_Tiny_imagent_label_smooth"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -18,7 +18,7 @@ def make_config(device):
                 classes=classes,
                 img_size=image_size,
                 dataset_path="/root/data/tiny-imagenet-200",
-                checkpoint_path=f"/root/model/tinyimagenet_unet",
+                checkpoint_path=f"./{project_name}/checkpoint",
                 video_save_path=f"./{project_name}/video",
                 dataset="Tinyimagenet",
                 AUG=dict(
@@ -29,14 +29,6 @@ def make_config(device):
                     remode="pixel",
                     recount=1,
                 ),
-                MIXUP=dict(
-                    mixup=0.8,
-                    cutmix=1.0,
-                    cutminmax=None,
-                    mixup_prob=1.0,
-                    mixup_switch_prob=0.5,
-                    mixup_mode="batch",
-                )
             ),
             MODEL=dict(
                 type=type,
@@ -69,13 +61,34 @@ def make_config(device):
             ),
             TRAIN=dict(
                 method=method,
-                loss_function="SoftTargetCrossEntropy", #LabelSmoothingCrossEntropy or SoftTargetCrossEntropy
+                loss_function="LabelSmoothingCrossEntropy", #LabelSmoothingCrossEntropy or SoftTargetCrossEntropy
                 label_smoothing=0.1,
                 training_loss_type="flow_matching",
-                optimizer_type="adam",
-                lr=1e-4,
+                
+                optimizer_type="adamw",
+                lr=1.25e-4,
+                warmup_lr=1.25e-07,
+                min_lr=1.25e-6,
+                
                 iteration=2000,
+                warmup_iteration=5,
+                decay_iteration=5,
+                
+                
+                
                 device=device,
+                OPTIMIZER=dict(
+                    eps=1e-08,
+                    betas=(0.9, 0.999),
+                    momentum=0.9,
+                ),
+                LR_SCHEDULER=dict(
+                    name="cosine",
+                    decay_rate=0.1,
+                    warmup_prefix=True,
+                    gamma=0.1,
+                    multisteps=[],
+                ),
             ),
             TEST=dict(
                 seed=0,
@@ -93,7 +106,12 @@ if __name__ == "__main__":
     accelerator = Accelerator()
     config = make_config(accelerator.device)
     import wandb
-
+    
+    num_processes = accelerator.num_processes
+    config.TRAIN.lr=config.TRAIN.lr*num_processes*config.DATA.batch_size/512
+    config.TRAIN.warmup_lr=config.TRAIN.warmup_lr*num_processes*config.DATA.batch_size/512
+    config.TRAIN.min_lr=config.TRAIN.min_lr*num_processes*config.DATA.batch_size/512
+    
     wandb.init(
         project=config.PROJECT_NAME,
         config=config,
