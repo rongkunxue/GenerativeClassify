@@ -14,10 +14,10 @@ def make_config(device):
             PROJECT_NAME=project_name,
             DEVICE=device,
             DATA=dict(
-                batch_size=180,
+                batch_size=128,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/mnt/nfs3/zhangjinouwen/dataset/tiny_imagenet_200",
+                dataset_path="/root/data/tiny-imagenet-200",
                 checkpoint_path=f"./{project_name}/checkpoint",
                 video_save_path=f"./{project_name}/video",
                 dataset="Tinyimagenet",
@@ -73,8 +73,8 @@ def make_config(device):
                 seed=0,
                 crop=True,
                 eval_freq=5,
-                generative_freq=50,
-                checkpoint_freq=10,
+                generative_freq=100,
+                checkpoint_freq=100,
             ),
         )
     )
