@@ -28,9 +28,9 @@ import timm.data.transforms as timm_transforms
 
 timm_transforms._pil_interp = _pil_interp
 
-def build_loader(config):
-    dataset_train = build_dataset(is_train=True, config=config)
-    dataset_val = build_dataset(is_train=False, config=config)
+def build_loader(config,if_analyse=False):
+    dataset_train = build_dataset(is_train=True, config=config,if_analyse=if_analyse)
+    dataset_val = build_dataset(is_train=False, config=config,if_analyse=if_analyse)
 
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
@@ -63,8 +63,18 @@ def build_loader(config):
     return data_loader_train, data_loader_val, mixup_fn
 
 
-def build_dataset(is_train, config):
-    transform = build_transform(is_train, config)
+def build_dataset(is_train, config,if_analyse):
+    if if_analyse :
+        transform = transforms.Compose(
+            [
+            transforms.Resize(config.DATA.img_size),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                std=[0.229, 0.224, 0.225]),
+            ]
+        )
+    else:
+        transform = build_transform(is_train, config)
     if config.DATA.dataset == "Tinyimagenet":
         if is_train:
             dataset = TinyImageNet(config.DATA.dataset_path, True, transform)

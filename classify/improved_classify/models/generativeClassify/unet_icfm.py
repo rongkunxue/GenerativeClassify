@@ -1,7 +1,9 @@
 import torch
 from grl.neural_network.unet import unet_2D
 from grl.neural_network import register_module
-from grl.generative_models.diffusion_model.diffusion_model import DiffusionModel
+from grl.generative_models.conditional_flow_model.independent_conditional_flow_model import (
+    IndependentConditionalFlowModel,
+)
 import torch.nn as nn
 from improved_utilities import (
     find_max_param_and_grad,
@@ -95,10 +97,10 @@ class generativeEncoder(nn.Module):
     def __init__(self, config):
         super(generativeEncoder, self).__init__()
         if config.image_size == 64:
-            register_module(Unet_64, "GenerativeClassifyUNet")
+            register_module(Unet_64, "GenerativeClassifyUNet_ICFM")
         elif config.image_size == 32:
-            register_module(Unet_32, "GenerativeClassifyUNet")
-        self.diffusionModel = DiffusionModel(config.diffusion_model)
+            register_module(Unet_32, "GenerativeClassifyUNet_ICFM")
+        self.diffusionModel = IndependentConditionalFlowModel(config.diffusion_model)
         self.config = config
 
     def sample_forward_process(self):
@@ -130,8 +132,8 @@ class generativeClassify(nn.Module):
         output = self.grlHead(images)
         return output
 
-    def matchingLoss(self, x):
-        return self.grlEncoder.diffusionModel.flow_matching_loss(x)
+    def matchingLoss(self,x0,x1):
+        return self.grlEncoder.diffusionModel.flow_matching_loss(x0=x0,x1=x1)
 
     def samplePicture(self, iteration=0, prefix="forwardImage"):
         return self.grlEncoder.sample_forward_process()

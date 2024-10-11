@@ -82,19 +82,19 @@ def load_model(
 
     return last_iteration
 
-def generative_picture(accelerator, model, epoch):
-    img=model.samplePicture()
-    img=accelerator.gather(img)
-    if accelerator.is_local_main_process:
-        img = torchvision.utils.make_grid(
-                img, value_range=(-1, 1), padding=0, nrow=4
-            )
-        imagenet_save(
-            img.cpu().detach(),
-            config.DATA.video_save_path,
-            epoch,
-            f"Tinyimage",
-        )
+# def generative_picture(accelerator, model, epoch):
+#     img=model.samplePicture()
+#     img=accelerator.gather(img)
+#     if accelerator.is_local_main_process:
+#         img = torchvision.utils.make_grid(
+#                 img, value_range=(-1, 1), padding=0, nrow=4
+#             )
+#         imagenet_save(
+#             img.cpu().detach(),
+#             config.DATA.video_save_path,
+#             epoch,
+#             f"Tinyimage",
+#         )
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -120,63 +120,63 @@ class AverageMeter(object):
         fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
         return fmtstr.format(**self.__dict__)
 
-def accuracy(output, target, topk=(1,)):
-    """Computes the accuracy over the k top predictions for the specified values of k"""
-    with torch.no_grad():
-        maxk = max(topk)
-        batch_size = target.size(0)
+# def accuracy(output, target, topk=(1,)):
+#     """Computes the accuracy over the k top predictions for the specified values of k"""
+#     with torch.no_grad():
+#         maxk = max(topk)
+#         batch_size = target.size(0)
 
-        _, pred = output.topk(maxk, 1, True, True)
-        pred = pred.t()
-        correct = pred.eq(target.view(1, -1).expand_as(pred))
+#         _, pred = output.topk(maxk, 1, True, True)
+#         pred = pred.t()
+#         correct = pred.eq(target.view(1, -1).expand_as(pred))
 
-        res = []
-        for k in topk:
-            correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
-            res.append(correct_k.mul_(100.0 / batch_size))
-        return res
+#         res = []
+#         for k in topk:
+#             correct_k = correct[:k].reshape(-1).float().sum(0, keepdim=True)
+#             res.append(correct_k.mul_(100.0 / batch_size))
+#         return res
 
-def validate(accelerator, model, val_loader, criterion, epoch):
-    losses = AverageMeter("Loss", ":.4e")
-    top1 = AverageMeter("Acc@1", ":6.2f")
-    top5 = AverageMeter("Acc@5", ":6.2f")
-    # switch to evaluate mode
-    model.eval()
-    with torch.no_grad():
-        for idx, (images, targets) in enumerate(val_loader):
-            # compute output
-            outputs = model(images)
-            outputs, targets = accelerator.gather_for_metrics((outputs, targets))
-            loss = criterion(outputs, targets)
-            # measure accuracy and record loss
-            acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
-            losses.update(loss.item(), outputs.size(0))
-            top1.update(acc1[0], outputs.size(0))
-            top5.update(acc5[0], outputs.size(0))
-        wandb.log(
-            {
-                f"eval/acc1": top1.avg,
-                f"eval/acc5": top5.avg,
-                f"eval/loss": losses.avg,
-                f"eval/epoch": epoch,
-            },
-            commit=False,
-        )
-    return 0
+# def validate(accelerator, model, val_loader, criterion, epoch):
+#     losses = AverageMeter("Loss", ":.4e")
+#     top1 = AverageMeter("Acc@1", ":6.2f")
+#     top5 = AverageMeter("Acc@5", ":6.2f")
+#     # switch to evaluate mode
+#     model.eval()
+#     with torch.no_grad():
+#         for idx, (images, targets) in enumerate(val_loader):
+#             # compute output
+#             outputs = model(images)
+#             outputs, targets = accelerator.gather_for_metrics((outputs, targets))
+#             loss = criterion(outputs, targets)
+#             # measure accuracy and record loss
+#             acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
+#             losses.update(loss.item(), outputs.size(0))
+#             top1.update(acc1[0], outputs.size(0))
+#             top5.update(acc5[0], outputs.size(0))
+#         wandb.log(
+#             {
+#                 f"eval/acc1": top1.avg,
+#                 f"eval/acc5": top5.avg,
+#                 f"eval/loss": losses.avg,
+#                 f"eval/epoch": epoch,
+#             },
+#             commit=False,
+#         )
+#     return 0
 
 def picture_analysis(config, accelerator):
     if config.TRAIN.method == "Pretrain":
         ### Load the data
-        data_loader_train, data_loader_val, mixup_fn = build_loader(config)
+        data_loader_train, data_loader_val, mixup_fn = build_loader(config,if_analyse=True)
         model = build_model(config)
         optimizer = build_optimizer(config, model)
-        
-        for i in range(100):
+        logp=[]
+        for i in range(17):
             diffusion_model_train_epoch = load_model(
                 path=config.DATA.checkpoint_path,
                 model=model.grlEncoder.diffusionModel.model,
                 optimizer=None,
-                prefix="DiffusionModel",
+                prefix="DiffusionModel_Pretrain",
                 nth=i,) 
             (
                 model.grlEncoder.diffusionModel.model,
@@ -198,5 +198,11 @@ def picture_analysis(config, accelerator):
                         t=torch.linspace(0.0, 1.0, 100).to(samples.device),
                         using_Hutchinson_trace_estimator=True,
                 )
+                logp.append(log_p)
+            log_p_mean = torch.stack(logp).mean()
+            log_p_max = torch.stack(logp).max()
+            log_p_min = torch.stack(logp).min()
+            #print or log log_p
+            log.info("i",log_p_mean,log_p_max,log_p_min)
                 
         
