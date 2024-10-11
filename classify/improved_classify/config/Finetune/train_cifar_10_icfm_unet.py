@@ -74,8 +74,8 @@ def make_config(device):
                 seed=0,
                 crop=True,
                 eval_freq=100,
-                generative_freq=10,
-                checkpoint_freq=10,
+                generative_freq=100,
+                checkpoint_freq=100,
             ),
         )
     )
