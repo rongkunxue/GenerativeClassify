@@ -73,21 +73,20 @@ class Unet_32(nn.Module):
 class classifyHead(nn.Module):
     def __init__(self, config):
         super(classifyHead, self).__init__()
-        self.flatten=nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
+        self.mypool=nn.Sequential(
+            nn.AdaptiveAvgPool2d((16, 16)) ,
             nn.Flatten(),
         )
         self.classifier=nn.Sequential(
-            nn.LayerNorm(3 * config.image_size * config.image_size),
-            nn.Linear(3 * config.image_size * config.image_size, 3 * config.image_size * config.image_size),
+            nn.LayerNorm(768),
+            nn.Linear(768, 768),
             nn.Tanh(),
-            nn.Linear(3 * config.image_size * config.image_size,  config.classes, bias=False),
+            nn.Linear(768,  config.classes, bias=False),
         )
-        self.flatten = nn.Flatten()
         self.config = config
 
     def forward(self, x):
-        x = self.flatten(x)
+        x = self.mypool(x)
         x = self.classifier(x)
         return x
 

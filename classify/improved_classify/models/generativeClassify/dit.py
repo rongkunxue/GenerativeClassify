@@ -62,18 +62,20 @@ class DiT_64(nn.Module):
 class classifyHead(nn.Module):
     def __init__(self, config):
         super(classifyHead, self).__init__()
-        self.classifier=nn.Sequential(
-            nn.AdaptiveAvgPool2d(1),
+        self.mypool=nn.Sequential(
+            nn.AdaptiveAvgPool2d((16, 16)) ,
             nn.Flatten(),
-            nn.LayerNorm(3 * config.image_size * config.image_size),
-            nn.Linear(3 * config.image_size * config.image_size, 3 * config.image_size * config.image_size),
-            nn.Tanh(),
-            nn.Linear(3 * config.image_size * config.image_size,  config.classes, bias=False),
         )
-        self.flatten = nn.Flatten()
+        self.classifier=nn.Sequential(
+            nn.LayerNorm(768),
+            nn.Linear(768, 768),
+            nn.Tanh(),
+            nn.Linear(768,  config.classes, bias=False),
+        )
         self.config = config
 
     def forward(self, x):
+        x = self.mypool(x)
         x = self.classifier(x)
         return x
 
