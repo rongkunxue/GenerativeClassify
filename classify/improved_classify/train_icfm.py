@@ -47,7 +47,7 @@ def imagenet_save(img, save_path="./", iteration=0, prefix="img"):
 def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_scheduler, epoch):
     model.train()
     num_steps=len(data_loader)
-    for idx ,(samples, targets) in track(
+    for samples, targets in track(
         data_loader, disable=not accelerator.is_local_main_process
     ):
         outputs = model(samples)
@@ -55,7 +55,7 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
-        lr_scheduler.step_update(epoch * num_steps + idx)
+        # lr_scheduler.step_update(epoch * num_steps + idx)
         # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
         wandb.log(
             {"train/loss": loss, "train/epoch": epoch},
@@ -277,7 +277,7 @@ def train(config, accelerator):
         data_loader_train, data_loader_val, mixup_fn = build_loader(config)
         model = build_model(config)
         optimizer = build_optimizer(config, model)
-        lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
+        # lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
         
         if (
                 hasattr(config.DATA, "checkpoint_path")
@@ -317,7 +317,7 @@ def train(config, accelerator):
             if epoch % config.TEST.eval_freq == 0:
                 validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
             else:
-                train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
+                train_epoch(accelerator, model, criterion, data_loader_train, optimizer, None,epoch)
             if (epoch + 1) % config.TEST.checkpoint_freq == 0:
                 if accelerator.is_local_main_process:
                     save_model(

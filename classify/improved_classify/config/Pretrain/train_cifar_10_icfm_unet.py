@@ -1,7 +1,7 @@
 import wandb
 from easydict import EasyDict
 from accelerate import Accelerator
-from train import train
+from train_icfm import train
 
 def make_config(device):
     method="Pretrain"
