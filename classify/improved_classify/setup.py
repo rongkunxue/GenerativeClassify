@@ -8,6 +8,14 @@ setup(
     install_requires=[
         "accelerate",
         "timm==0.4.12",
+        'matplotlib',
+        'numpy',
+        'torch',
+        'torchvision',
+        'scikit-learn',
+        'accelerate',
+        'ipdb',
+        'nvitop',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",

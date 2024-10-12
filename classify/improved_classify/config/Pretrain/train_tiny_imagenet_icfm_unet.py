@@ -1,20 +1,20 @@
 import wandb
 from easydict import EasyDict
 from accelerate import Accelerator
-from train import train
+from train_icfm import train
 
 def make_config(device):
     method="Pretrain"
-    type="GenerativeClassifyDiT"
+    type="GenerativeClassifyUNet_ICFM"
     classes = 200
     image_size = 64
-    project_name = "Classify_Tiny_imagent_dit_finetune"
+    project_name = "Classify_Tiny_imagent_Unet_finetune"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
             DEVICE=device,
             DATA=dict(
-                batch_size=64,
+                batch_size=128,
                 classes=classes,
                 img_size=image_size,
                 dataset_path="/root/data/tiny-imagenet-200",
@@ -47,7 +47,7 @@ def make_config(device):
                         ),
                     ),
                     path=dict(
-                        type="gvp",
+                        sigma=0.0,
                     ),
                     model=dict(
                         type="velocity_function",
@@ -73,9 +73,9 @@ def make_config(device):
             TEST=dict(
                 seed=0,
                 crop=True,
-                eval_freq=5,
-                generative_freq=50,
-                checkpoint_freq=10,
+                eval_freq=100,
+                generative_freq=100,
+                checkpoint_freq=100,
             ),
         )
     )
