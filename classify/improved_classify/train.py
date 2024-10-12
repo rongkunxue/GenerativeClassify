@@ -273,7 +273,16 @@ def train(config, accelerator):
                         prefix="DiffusionModel_Pretrain",
                 )
                 
-        
+        if (
+                hasattr(config.DATA, "checkpoint_path")
+                and config.DATA.checkpoint_path is not None
+            ):
+                load_model(
+                        path=config.DATA.checkpoint_path,
+                        model=model,
+                        optimizer=None,
+                        prefix="GenerativeClassify",
+                )
 
         if config.TRAIN.loss_function == "CrossEntropy":
             criterion = torch.nn.CrossEntropyLoss()

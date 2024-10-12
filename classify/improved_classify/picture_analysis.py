@@ -21,6 +21,7 @@ import os
 import torch
 from grl.utils.log import log
 from grl.generative_models.metric import compute_likelihood
+import wandb
 
 def load_model(
         path: str,
@@ -171,7 +172,7 @@ def picture_analysis(config, accelerator):
         model = build_model(config)
         optimizer = build_optimizer(config, model)
         logp=[]
-        for i in range(17):
+        for i in range(15):
             diffusion_model_train_epoch = load_model(
                 path=config.DATA.checkpoint_path,
                 model=model.grlEncoder.diffusionModel.model,
@@ -202,6 +203,15 @@ def picture_analysis(config, accelerator):
             log_p_mean = torch.stack(logp).mean()
             log_p_max = torch.stack(logp).max()
             log_p_min = torch.stack(logp).min()
+            wandb.log(
+                {
+                    f"train/log_p_mean": log_p_mean,
+                    f"train/log_p_max": log_p_max,
+                    f"train/log_p_min": log_p_min,
+                    f"iteration":i,
+                },
+                commit=True,
+            )
             #print or log log_p
             log.info("i",log_p_mean,log_p_max,log_p_min)
                 
