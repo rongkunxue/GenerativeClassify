@@ -3,15 +3,7 @@ from grl.neural_network.transformers.dit import DiT
 from grl.neural_network import register_module
 from grl.generative_models.diffusion_model.diffusion_model import DiffusionModel
 import torch.nn as nn
-from improved_utilities import (
-    find_max_param_and_grad,
-    img_save,
-    load_pt,
-    load_state,
-    save_pt,
-    save_state,
-    imagenet_save,
-)
+
 
 class DiT_32(nn.Module):
     def __init__(self):
