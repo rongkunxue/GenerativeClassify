@@ -47,6 +47,7 @@ def imagenet_save(img, save_path="./", iteration=0, prefix="img"):
 def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_scheduler, epoch):
     model.train()
     num_steps=len(data_loader)
+    idx=0
     for samples, targets in track(
         data_loader, disable=not accelerator.is_local_main_process
     ):
@@ -55,8 +56,48 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
-        # lr_scheduler.step_update(epoch * num_steps + idx)
+        lr_scheduler.step_update(epoch * num_steps + idx)
+        idx+=1
         # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
+        wandb.log(
+            {"train/loss": loss, "train/epoch": epoch},
+            commit=True,
+        )
+    return 0
+
+def train_epoch_withflowmaching(accelerator, model, criterion, data_loader, optimizer,lr_scheduler, epoch):
+    model.train()
+    num_steps=len(data_loader)
+    idx=0
+    for samples, targets in track(
+        data_loader, disable=not accelerator.is_local_main_process
+    ):
+        outputs = model(samples)
+        loss1 = criterion(outputs, targets)
+        x0 = model.grlEncoder.diffusionModel.gaussian_generator(samples.shape[0]).to(samples.device)
+        loss2 = model.matchingLoss(x0=x0,x1=samples)
+        loss = loss1+0.1*loss2
+        optimizer.zero_grad()
+        accelerator.backward(loss)
+        optimizer.step()
+        lr_scheduler.step_update(epoch * num_steps + idx)
+        idx+=1
+        # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
+        wandb.log(
+            {"train/loss": loss, "train/epoch": epoch,"train/loss1": loss1,"train/loss2": loss2},
+            commit=True,
+        )
+    return 0
+
+def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
+    model.train()
+    for samples, targets in track(
+        data_loader, disable=not accelerator.is_local_main_process
+    ):
+        loss = model.matchingLoss(samples)
+        optimizer.zero_grad()
+        accelerator.backward(loss)
+        optimizer.step()
         wandb.log(
             {"train/loss": loss, "train/epoch": epoch},
             commit=True,
@@ -70,21 +111,6 @@ def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
     ):
         x0 = model.grlEncoder.diffusionModel.gaussian_generator(samples.shape[0]).to(samples.device)
         loss = model.matchingLoss(x0=x0,x1=samples)
-        optimizer.zero_grad()
-        accelerator.backward(loss)
-        optimizer.step()
-        wandb.log(
-            {"train/loss": loss, "train/epoch": epoch},
-            commit=True,
-        )
-    return 0
-
-def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
-    model.train()
-    for samples, targets in track(
-        data_loader, disable=not accelerator.is_local_main_process
-    ):
-        loss = model.matchingLoss(samples)
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
@@ -262,22 +288,27 @@ def train(config, accelerator):
                 train_log=analysis_logp(accelerator, model, data_loader_train, epoch)
                 eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
                 
-            #     wandb.log(
-            #     {"eval/train_logp": train_log, "eval/epoch": epoch,"eval/eval_logp": eval_log},
-            #     commit=False,
-            #     )
+                wandb.log(
+                {"eval/train_logp": train_log, "eval/epoch": epoch,"eval/eval_logp": eval_log},
+                commit=False,
+                )
                 
         
-            if (epoch+1) % config.TEST.generative_freq == 0:
+            if (epoch + 1) % config.TEST.generative_freq == 0:
                 generative_picture(accelerator, model,  epoch,config)
-            train_icfm_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
+                
+            if config.model_type=="ICFM":
+                train_icfm_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
+            elif config.model_type=="Diff":
+                train_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
+            else:
+                raise NotImplementedError("Model type not implemented")
             
         
     if config.TRAIN.method == "Finetune" or config.TRAIN.method == "Pretrain":
         data_loader_train, data_loader_val, mixup_fn = build_loader(config)
         model = build_model(config)
         optimizer = build_optimizer(config, model)
-        # lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
         
         if (
                 hasattr(config.DATA, "checkpoint_path")
@@ -290,8 +321,6 @@ def train(config, accelerator):
                         prefix="DiffusionModel_Pretrain",
                 )
                 
-        
-
         if config.TRAIN.loss_function == "CrossEntropy":
             criterion = torch.nn.CrossEntropyLoss()
         elif config.TRAIN.loss_function == "LabelSmoothingCrossEntropy":
@@ -313,11 +342,19 @@ def train(config, accelerator):
             data_loader_val,
             optimizer,
         )
+        lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
         for epoch in range(config.TRAIN.iteration):
-            if epoch % config.TEST.eval_freq == 0:
+            if (epoch+1) % config.TEST.eval_freq == 0:
                 validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
-            else:
-                train_epoch(accelerator, model, criterion, data_loader_train, optimizer, None,epoch)
+            if hasattr(config.Train,"flow_matching") and config.Train.flow_matching:
+                if model.type=="ICFM":
+                    train_epoch_withflowmaching(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
+                elif model.type=="Diff":
+                    raise NotImplementedError("will write the method")                     
+                else:
+                    raise NotImplementedError("Model type not implemented")
+            else :
+                train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
             if (epoch + 1) % config.TEST.checkpoint_freq == 0:
                 if accelerator.is_local_main_process:
                     save_model(

@@ -52,7 +52,10 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         data_loader, disable=not accelerator.is_local_main_process
     ):
         outputs = model(samples)
-        loss = criterion(outputs, targets)
+        loss1 = criterion(outputs, targets)
+        x0 = model.grlEncoder.diffusionModel.gaussian_generator(samples.shape[0]).to(samples.device)
+        loss2 = model.matchingLoss(x0=x0,x1=samples)
+        loss = loss1+0.1*loss2
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
@@ -65,29 +68,15 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         )
     return 0
 
-def train_epoch_mixup(accelerator, model, criterion, data_loader, optimizer, epoch,mixup_fn):
-    model.train()
-    for samples, targets in track(
-        data_loader, disable=not accelerator.is_local_main_process
-    ):
-        samples, targets = mixup_fn(samples, targets)
-        outputs = model(samples)
-        loss = criterion(outputs, targets)
-        optimizer.zero_grad()
-        accelerator.backward(loss)
-        optimizer.step()
-        wandb.log(
-            {"train/loss": loss, "train/epoch": epoch},
-            commit=True,
-        )
-    return 0
 
-def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
+
+def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
     model.train()
     for samples, targets in track(
         data_loader, disable=not accelerator.is_local_main_process
     ):
-        loss = model.matchingLoss(samples)
+        x0 = model.grlEncoder.diffusionModel.gaussian_generator(samples.shape[0]).to(samples.device)
+        loss = model.matchingLoss(x0=x0,x1=samples)
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
@@ -273,7 +262,7 @@ def train(config, accelerator):
         
             if (epoch + 1) % config.TEST.generative_freq == 0:
                 generative_picture(accelerator, model,  epoch,config)
-            train_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
+            train_icfm_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
             
         
     if config.TRAIN.method == "Finetune" or config.TRAIN.method == "Pretrain":
@@ -281,19 +270,17 @@ def train(config, accelerator):
         model = build_model(config)
         optimizer = build_optimizer(config, model)
         
-        # if (
-        #         hasattr(config.DATA, "checkpoint_path")
-        #         and config.DATA.checkpoint_path is not None
-        #     ):
-        #         load_model(
-        #                 path=config.DATA.checkpoint_path,
-        #                 model=model.grlEncoder.diffusionModel.model,
-        #                 optimizer=None,
-        #                 prefix="DiffusionModel_Pretrain",
-        #         )
+        if (
+                hasattr(config.DATA, "checkpoint_path")
+                and config.DATA.checkpoint_path is not None
+            ):
+                load_model(
+                        path=config.DATA.checkpoint_path,
+                        model=model.grlEncoder.diffusionModel.model,
+                        optimizer=None,
+                        prefix="DiffusionModel_Pretrain",
+                )
                 
-        
-
         if config.TRAIN.loss_function == "CrossEntropy":
             criterion = torch.nn.CrossEntropyLoss()
         elif config.TRAIN.loss_function == "LabelSmoothingCrossEntropy":
