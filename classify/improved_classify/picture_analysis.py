@@ -171,8 +171,9 @@ def picture_analysis(config, accelerator):
         data_loader_train, data_loader_val, mixup_fn = build_loader(config,if_analyse=True)
         model = build_model(config)
         optimizer = build_optimizer(config, model)
-        logp=[]
         for i in range(15):
+            print("i",i)
+            logp=[]
             diffusion_model_train_epoch = load_model(
                 path=config.DATA.checkpoint_path,
                 model=model.grlEncoder.diffusionModel.model,
@@ -190,6 +191,7 @@ def picture_analysis(config, accelerator):
                 data_loader_val,
                 optimizer,
             )
+            count=0
             for samples, targets in track(
                 data_loader_train, disable=not accelerator.is_local_main_process
             ):
@@ -200,9 +202,16 @@ def picture_analysis(config, accelerator):
                         using_Hutchinson_trace_estimator=True,
                 )
                 logp.append(log_p)
+                count+=1
+                if count >20:
+                    break
             log_p_mean = torch.stack(logp).mean()
             log_p_max = torch.stack(logp).max()
             log_p_min = torch.stack(logp).min()
+            print("log_p_mean",log_p_mean)
+            print("log_p_max",log_p_max)
+            print("log_p_min",log_p_min)
+            
             wandb.log(
                 {
                     f"train/log_p_mean": log_p_mean,
@@ -212,7 +221,5 @@ def picture_analysis(config, accelerator):
                 },
                 commit=True,
             )
-            #print or log log_p
-            log.info("i",log_p_mean,log_p_max,log_p_min)
                 
         
