@@ -27,17 +27,17 @@ def build_model(config, is_pretrain=False):
             use_checkpoint=config.TRAIN.USE_CHECKPOINT,
             fused_window_process=False,
         )
-    elif model_type == "GenerativeClassifyUNet":
+    elif model_type == "GenerativeClassifyUNet_Diff":
         from .generativeClassify.unet import generativeClassify
-
-        model = generativeClassify(config.MODEL)
-    elif model_type == "GenerativeClassifyDiT":
-        from .generativeClassify.dit import generativeClassify
 
         model = generativeClassify(config.MODEL)
     elif model_type == "GenerativeClassifyUNet_ICFM":
         from .generativeClassify.unet_icfm import generativeClassify
         
+        model = generativeClassify(config.MODEL)
+    elif model_type == "GenerativeClassifyDiT_Diff":
+        from .generativeClassify.dit import generativeClassify
+
         model = generativeClassify(config.MODEL)
     else:
         raise NotImplementedError(f"Unkown model: {model_type}")

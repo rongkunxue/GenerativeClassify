@@ -5,7 +5,7 @@ from train_main import train
 
 def make_config(device):
     model_type="Diff"
-    method="Pretrain"
+    method="Finetune"
     type=f"GenerativeClassifyUNet_{model_type}"
     classes = 10
     image_size = 32

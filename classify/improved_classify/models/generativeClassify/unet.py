@@ -86,9 +86,9 @@ class generativeEncoder(nn.Module):
     def __init__(self, config):
         super(generativeEncoder, self).__init__()
         if config.image_size == 64:
-            register_module(Unet_64, "GenerativeClassifyUNet")
+            register_module(Unet_64, "GenerativeClassifyUNet_Diff")
         elif config.image_size == 32:
-            register_module(Unet_32, "GenerativeClassifyUNet")
+            register_module(Unet_32, "GenerativeClassifyUNet_Diff")
         self.diffusionModel = DiffusionModel(config.diffusion_model)
         self.config = config
 
