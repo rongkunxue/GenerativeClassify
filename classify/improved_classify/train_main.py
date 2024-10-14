@@ -120,6 +120,21 @@ def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
         )
     return 0
 
+def train_recitified_flow_matching(accelerator, model, data_loader, optimizer, epoch):
+    model.train()
+    for x0, x1 in track(
+        data_loader, disable=not accelerator.is_local_main_process
+    ):
+        loss = model.matchingLoss(x0=x0,x1=x1)
+        optimizer.zero_grad()
+        accelerator.backward(loss)
+        optimizer.step()
+        wandb.log(
+            {"train/loss": loss, "train/epoch": epoch},
+            commit=True,
+        )
+    return 0
+
 @torch.no_grad()
 def analysis_logp(accelerator, model, data_loader, epoch):
     model.eval()
@@ -159,33 +174,33 @@ def generative_picture(accelerator, model, epoch,config):
         )
 
 @torch.no_grad()
-def collect_new_dataloader(accelerator,data_loader, model, config):
-    x1 = []
-    x0 = []
-    label = []
+def collect_new_dataloader(accelerator,data_loader, model, config,prefix=None):
+    x1_list = []
+    x0_list = []
+    label_list = []
     model.eval()
     for batch_data, batch_label in track(
         data_loader, disable=not accelerator.is_local_main_process
     ):
-        t_span = torch.linspace(0.0, 1.0, 20).to(config.diffusion_model.device)
+        t_span = torch.linspace(0.0, 1.0, 20).to(config.TRAIN.device)
         x0= model.grlEncoder.diffusionModel.forward_sample(
                 t_span=t_span, x=batch_data,with_grad=False
             ).detach()
         x1, x0, label = accelerator.gather_for_metrics(
                 (batch_data, x0, batch_label)
             )
-        x1.append(x1.cpu())
-        label.append(label.cpu())
-        x0.append(x0.cpu())
-    x1_ = torch.cat(x1, dim=0)
-    x0_ = torch.cat(x0, dim=0)
-    label_ = torch.cat(label, dim=0)
-    data_to_save = {"data": x1_, "data_transform": x0_, "value": label_}
+        x1_list.append(x1.cpu())
+        label_list.append(label.cpu())
+        x0_list.append(x0.cpu())
+    x1_ = torch.cat(x1_list, dim=0)
+    x0_ = torch.cat(x0_list, dim=0)
+    label_ = torch.cat(label_list, dim=0)
+    data_to_save = {"x1": x1_, "x0": x0_, "label": label_}
     if accelerator.is_main_process:
         path=config.DATA.checkpoint_path
         torch.save(
             data_to_save,
-            f"{path}/new_data_{config.project_name}_{config.type}.pt",
+            f"{path}/{prefix}_new_data_{config.PROJECT_NAME}.pt",
         )
 
 class AverageMeter(object):
@@ -396,64 +411,119 @@ def train(config, accelerator):
                     )
                     
 
-    if config.TRAIN.method == "rectified_collect":
-            data_loader_train, data_loader_val, mixup_fn = build_loader(config)
-            model = build_model(config)
-            optimizer = build_optimizer(config, model)
-            
-            if (
-                hasattr(config.DATA, "checkpoint_path")
-                and config.DATA.checkpoint_path is not None
-            ):
-                load_model(
-                        path=config.DATA.checkpoint_path,
-                        model=model,
-                        optimizer=None,
-                        prefix="GenerativeClassify",
-                )
-            else:
-                raise NotImplementedError("Please provide the checkpoint path")
-            model.eval()
-            (
+    if config.TRAIN.method == "Recitified_collect":
+        data_loader_train, data_loader_val, mixup_fn = build_loader(config,True)
+        model = build_model(config)
+        optimizer = build_optimizer(config, model)
+        
+        if (
+            hasattr(config.DATA, "checkpoint_path")
+            and config.DATA.checkpoint_path is not None
+        ):
+            load_model(
+                    path=config.DATA.checkpoint_path,
+                    model=model,
+                    optimizer=None,
+                    prefix="GenerativeClassify",
+            )
+        else:
+            raise NotImplementedError("Please provide the checkpoint path")
+
+        (
+        model.grlEncoder.diffusionModel.model,
+        model.grlHead,
+        data_loader_train,
+        data_loader_val,
+        optimizer,
+        ) = accelerator.prepare(
             model.grlEncoder.diffusionModel.model,
             model.grlHead,
             data_loader_train,
             data_loader_val,
             optimizer,
-            ) = accelerator.prepare(
-                model.grlEncoder.diffusionModel.model,
-                model.grlHead,
-                data_loader_train,
-                data_loader_val,
-                optimizer,
+        )
+        
+        collect_new_dataloader(accelerator,data_loader_train, model, config,"train")
+        collect_new_dataloader(accelerator,data_loader_val, model, config,"test")
+
+
+    if config.TRAIN.method == "Recitified_collect" or config.TRAIN.method == "Recitified":   
+        data_loader_train, data_loader_val, mixup_fn = build_loader(config)
+        train_data=torch.load(f"{config.DATA.checkpoint_path}/train_new_data_{config.PROJECT_NAME}.pt")
+        test_data=torch.load(f"{config.DATA.checkpoint_path}/test_new_data_{config.PROJECT_NAME}.pt")
+        x0=torch.cat([train_data["x0"],test_data["x0"]],dim=0)
+        x1=torch.cat([train_data["x1"],test_data["x1"]],dim=0)
+        
+        dataset = torch.utils.data.TensorDataset(x0,x1)
+        dataloader = torch.utils.data.DataLoader(
+            dataset,
+            batch_size=config.DATA.batch_size,
+            shuffle=True,
+            num_workers=8,
+            pin_memory=True,
+        )
+        model = build_model(config)
+        if (
+            hasattr(config.DATA, "checkpoint_path")
+            and config.DATA.checkpoint_path is not None
+        ):
+            load_model(
+                    path=config.DATA.checkpoint_path,
+                    model=model,
+                    optimizer=None,
+                    prefix="GenerativeClassify",
             )
-            collect_new_dataloader(accelerator,data_loader_train, model, config)
-
-
-    if config.TRAIN.method == "rectified_collect" and config.TRAIN.loss_function == "rectified":   
-            if (
-                hasattr(config.DATA, "checkpoint_path")
-                and config.DATA.checkpoint_path is not None
-            ):
-                load_model(
-                        path=config.DATA.checkpoint_path,
-                        model=model,
-                        optimizer=None,
-                        prefix="GenerativeClassify",
-                )
-            else:
-                raise NotImplementedError("Please provide the checkpoint path")
-            model.eval()
-            (
-            model.grlEncoder.diffusionModel.model,
-            model.grlHead,
-            data_loader_train,
+        else:
+            raise NotImplementedError("Please provide the checkpoint path")
+        
+        import copy
+        recitified_model=copy.deepcopy(model)
+        optimizer = torch.optim.Adam(
+            recitified_model.grlEncoder.diffusionModel.model.parameters(),
+            lr=config.TRAIN.lr,
+        )    
+        
+        (
+        recitified_model.grlEncoder.diffusionModel.model,
+        recitified_model.grlHead,
+        dataloader,
+        data_loader_val,
+        optimizer,
+        ) = accelerator.prepare(
+            recitified_model.grlEncoder.diffusionModel.model,
+            recitified_model.grlHead,
+            dataloader,
             data_loader_val,
             optimizer,
-            ) = accelerator.prepare(
-                model.grlEncoder.diffusionModel.model,
-                model.grlHead,
-                data_loader_train,
-                data_loader_val,
-                optimizer,
-            )
+        )
+        if config.TRAIN.loss_function == "CrossEntropy":
+            criterion = torch.nn.CrossEntropyLoss()
+        elif config.TRAIN.loss_function == "LabelSmoothingCrossEntropy":
+            criterion = LabelSmoothingCrossEntropy(smoothing=config.TRAIN.label_smoothing)
+        elif config.TRAIN.loss_function == "SoftTargetCrossEntropy":
+            criterion = SoftTargetCrossEntropy()
+        else:
+            raise NotImplementedError
+        for epoch in range(config.TRAIN.iteration):
+            if (epoch) % config.TEST.eval_freq == 0:
+                validate(accelerator, recitified_model, data_loader_val, criterion, epoch,mixup_fn)
+            train_recitified_flow_matching(accelerator, recitified_model,dataloader, optimizer, epoch)
+            # if hasattr(config.Train,"flow_matching") and config.Train.flow_matching:
+            #     if model.type=="ICFM":
+            #         train_epoch_withflowmaching(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
+            #     elif model.type=="Diff":
+            #         raise NotImplementedError("will write the method")                     
+            #     else:
+            #         raise NotImplementedError("Model type not implemented")
+            # else :
+            #     train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
+            if (epoch + 1) % config.TEST.checkpoint_freq == 0:
+                if accelerator.is_local_main_process:
+                    save_model(
+                        config.DATA.checkpoint_path,
+                        model,
+                        optimizer,
+                        epoch,
+                        "GenerativeClassify_recitified",
+                    )
+    
