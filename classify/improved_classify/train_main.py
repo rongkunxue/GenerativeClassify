@@ -158,6 +158,36 @@ def generative_picture(accelerator, model, epoch,config):
             f"Tinyimage",
         )
 
+@torch.no_grad()
+def collect_new_dataloader(accelerator,data_loader, model, config):
+    x1 = []
+    x0 = []
+    label = []
+    model.eval()
+    for batch_data, batch_label in track(
+        data_loader, disable=not accelerator.is_local_main_process
+    ):
+        t_span = torch.linspace(0.0, 1.0, 20).to(config.diffusion_model.device)
+        x0= model.grlEncoder.diffusionModel.forward_sample(
+                t_span=t_span, x=batch_data,with_grad=False
+            ).detach()
+        x1, x0, label = accelerator.gather_for_metrics(
+                (batch_data, x0, batch_label)
+            )
+        x1.append(x1.cpu())
+        label.append(label.cpu())
+        x0.append(x0.cpu())
+    x1_ = torch.cat(x1, dim=0)
+    x0_ = torch.cat(x0, dim=0)
+    label_ = torch.cat(label, dim=0)
+    data_to_save = {"data": x1_, "data_transform": x0_, "value": label_}
+    if accelerator.is_main_process:
+        path=config.DATA.checkpoint_path
+        torch.save(
+            data_to_save,
+            f"{path}/new_data_{config.project_name}_{config.type}.pt",
+        )
+
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
@@ -366,5 +396,64 @@ def train(config, accelerator):
                     )
                     
 
+    if config.TRAIN.method == "rectified_collect":
+            data_loader_train, data_loader_val, mixup_fn = build_loader(config)
+            model = build_model(config)
+            optimizer = build_optimizer(config, model)
+            
+            if (
+                hasattr(config.DATA, "checkpoint_path")
+                and config.DATA.checkpoint_path is not None
+            ):
+                load_model(
+                        path=config.DATA.checkpoint_path,
+                        model=model,
+                        optimizer=None,
+                        prefix="GenerativeClassify",
+                )
+            else:
+                raise NotImplementedError("Please provide the checkpoint path")
+            model.eval()
+            (
+            model.grlEncoder.diffusionModel.model,
+            model.grlHead,
+            data_loader_train,
+            data_loader_val,
+            optimizer,
+            ) = accelerator.prepare(
+                model.grlEncoder.diffusionModel.model,
+                model.grlHead,
+                data_loader_train,
+                data_loader_val,
+                optimizer,
+            )
+            collect_new_dataloader(accelerator,data_loader_train, model, config)
 
 
+    if config.TRAIN.method == "rectified_collect" and config.TRAIN.loss_function == "rectified":   
+            if (
+                hasattr(config.DATA, "checkpoint_path")
+                and config.DATA.checkpoint_path is not None
+            ):
+                load_model(
+                        path=config.DATA.checkpoint_path,
+                        model=model,
+                        optimizer=None,
+                        prefix="GenerativeClassify",
+                )
+            else:
+                raise NotImplementedError("Please provide the checkpoint path")
+            model.eval()
+            (
+            model.grlEncoder.diffusionModel.model,
+            model.grlHead,
+            data_loader_train,
+            data_loader_val,
+            optimizer,
+            ) = accelerator.prepare(
+                model.grlEncoder.diffusionModel.model,
+                model.grlHead,
+                data_loader_train,
+                data_loader_val,
+                optimizer,
+            )
