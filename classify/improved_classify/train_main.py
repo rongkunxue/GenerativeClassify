@@ -342,9 +342,9 @@ def train(config, accelerator):
             if (epoch + 1) % config.TEST.generative_freq == 0:
                 generative_picture(accelerator, model,  epoch,config)
                 
-            if config.model_type=="ICFM":
+            if config.MODEL.model_type in ["ICFM","OT"]:
                 train_icfm_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
-            elif config.model_type=="Diff":
+            elif config.MDOEL.model_type=="Diff":
                 train_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
             else:
                 raise NotImplementedError("Model type not implemented")
