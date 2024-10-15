@@ -175,7 +175,7 @@ def generative_picture(accelerator, model, epoch,config):
 
 @torch.no_grad()
 def collect_new_dataloader(accelerator,data_loader, model, config,prefix):
-    if prefix in ["train","test"]
+    if prefix in ["train","test"]:
         x1_list = []
         x0_list = []
         label_list = []
@@ -214,14 +214,15 @@ def collect_new_dataloader(accelerator,data_loader, model, config,prefix):
         model.eval()
         for _ in range(num_batches):
             t_span = torch.linspace(0.0, 1.0, 20).to(config.TRAIN.device)
-            x0 = model.grlEncoder.diffusionModel.gaussian_generator(batch_size).to(config.device) 
-            x1 = model.grlEncoder.diffusionModel.sample_forward_process(t_span=t_span, x_0=x0).to(config.device)[-1] 
-            x1, x0 = accelerator.gather_for_metrics((x0, x1))
+            x0 = model.grlEncoder.diffusionModel.gaussian_generator(batch_size).to(config.TRAIN.device)
+            x1 = model.grlEncoder.diffusionModel.sample_forward_process(t_span=t_span, x_0=x0).to(config.TRAIN.device)[-1] 
+            x0,x1= accelerator.gather_for_metrics((x0, x1))
             x1_list.append(x1.cpu())
             x0_list.append(x0.cpu())
         x1_ = torch.cat(x1_list, dim=0)
         x0_ = torch.cat(x0_list, dim=0)
-        print(x1_.shape[0]/50000)
+        if accelerator.is_main_process:
+            print(x1_.shape[0]/50000)
         data_to_save = {"x1": x1_, "x0": x0_}
         if accelerator.is_main_process:
             path=config.DATA.checkpoint_path
@@ -233,31 +234,6 @@ def collect_new_dataloader(accelerator,data_loader, model, config,prefix):
     else :
         raise NotImplementedError("prefix not implemented")
         
-
-@torch.no_grad()
-def collect_new_dataloader(accelerator,data_loader, model, config,prefix=None):
-    batch_size = 200
-    total_samples = 50000
-    num_batches = total_samples // batch_size
-    x1_list = []
-    x0_list = []
-    label_list = []
-    model.eval()
-    for _ in range(num_batches):
-        t_span = torch.linspace(0.0, 1.0, 20).to(config.TRAIN.device)
-        x0 = model.grlEncoder.diffusionModel.gaussian_generator(batch_size).to(config.device) 
-        x1 = model.grlEncoder.diffusionModel.sample_forward_process(t_span=t_span, x_0=x0).to(config.device)[-1] 
-        x1_list.append(x1.cpu())
-        x0_list.append(x0.cpu())
-    x1_ = torch.cat(x1_list, dim=0)
-    x0_ = torch.cat(x0_list, dim=0)
-    data_to_save = {"x1": x1_, "x0": x0_}
-    if accelerator.is_main_process:
-        path=config.DATA.checkpoint_path
-        torch.save(
-            data_to_save,
-            f"{path}/{prefix}_new_data_{config.PROJECT_NAME}.pt",
-        )
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -410,18 +386,17 @@ def train(config, accelerator):
         model = build_model(config)
         optimizer = build_optimizer(config, model)
         
+        
         if (
             hasattr(config.DATA, "checkpoint_path")
             and config.DATA.checkpoint_path is not None
         ):
             load_model(
                     path=config.DATA.checkpoint_path,
-                    model=model,
+                    model=model.grlEncoder.diffusionModel.model,
                     optimizer=None,
-                    prefix="GenerativeClassify",
+                    prefix="DiffusionModel_Pretrain",
             )
-        else:
-            raise NotImplementedError("Please provide the checkpoint path")
 
         (
         model.grlEncoder.diffusionModel.model,
