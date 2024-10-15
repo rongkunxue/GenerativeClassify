@@ -205,7 +205,7 @@ def collect_new_dataloader(accelerator,data_loader, model, config,prefix):
             )
     
     elif prefix == "noise":
-        batch_size = 200
+        batch_size = 250
         total_samples = 50000
         num_batches = total_samples // batch_size // accelerator.num_processes
         x1_list = []
@@ -419,10 +419,13 @@ def train(config, accelerator):
 
     if config.TRAIN.method == "Recitified_collect" or config.TRAIN.method == "Recitified":   
         data_loader_train, data_loader_val, mixup_fn = build_loader(config)
-        train_data=torch.load(f"{config.DATA.checkpoint_path}/train_new_data_{config.PROJECT_NAME}.pt")
-        test_data=torch.load(f"{config.DATA.checkpoint_path}/test_new_data_{config.PROJECT_NAME}.pt")
-        x0=torch.cat([train_data["x0"],test_data["x0"]],dim=0)
-        x1=torch.cat([train_data["x1"],test_data["x1"]],dim=0)
+        noise_data = torch.load(f"{config.DATA.checkpoint_path}/noise_new_data_{config.PROJECT_NAME}.pt")
+        x0=noise_data["x0"]
+        x1=noise_data["x1"]
+        # train_data=torch.load(f"{config.DATA.checkpoint_path}/train_new_data_{config.PROJECT_NAME}.pt")
+        # test_data=torch.load(f"{config.DATA.checkpoint_path}/test_new_data_{config.PROJECT_NAME}.pt")
+        # x0=torch.cat([train_data["x0"],test_data["x0"]],dim=0)
+        # x1=torch.cat([train_data["x1"],test_data["x1"]],dim=0)
         
         dataset = torch.utils.data.TensorDataset(x0,x1)
         dataloader = torch.utils.data.DataLoader(
@@ -439,9 +442,9 @@ def train(config, accelerator):
         ):
             load_model(
                     path=config.DATA.checkpoint_path,
-                    model=model,
+                    model=model.grlEncoder.diffusionModel.model,
                     optimizer=None,
-                    prefix="GenerativeClassify",
+                    prefix="DiffusionModel_Pretrain",
             )
         else:
             raise NotImplementedError("Please provide the checkpoint path")
@@ -474,7 +477,7 @@ def train(config, accelerator):
             criterion = SoftTargetCrossEntropy()
         else:
             raise NotImplementedError
-        for epoch in range(config.TRAIN.iteration):
+        for epoch in range(2000):
             if (epoch) % config.TEST.eval_freq == 0:
                 validate(accelerator, recitified_model, data_loader_val, criterion, epoch,mixup_fn)
             train_recitified_flow_matching(accelerator, recitified_model,dataloader, optimizer, epoch)
@@ -487,7 +490,7 @@ def train(config, accelerator):
             #         raise NotImplementedError("Model type not implemented")
             # else :
             #     train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
-            if (epoch + 1) % config.TEST.checkpoint_freq == 0:
+            if (epoch + 1) % 1000 == 0:
                 if accelerator.is_local_main_process:
                     save_model(
                         config.DATA.checkpoint_path,

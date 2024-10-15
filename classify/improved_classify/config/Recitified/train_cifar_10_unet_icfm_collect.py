@@ -1,7 +1,7 @@
 import wandb
 from easydict import EasyDict
 from accelerate import Accelerator
-from train_main import train
+from train_main_with_noise import train
 
 def make_config(device):
     model_type="ICFM"
@@ -18,8 +18,8 @@ def make_config(device):
                 batch_size=180,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/root/data/cifar",
-                checkpoint_path=f"/root/checkpoint/cifar/icfm_checkpoint",
+                dataset_path="/root/exp/data",
+                checkpoint_path=f"/root/checkpoint/icfm_checkpoint",
                 video_save_path=f"./{project_name}/video",
                 dataset="CIFAR-10",
                 AUG=dict(
