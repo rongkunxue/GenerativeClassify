@@ -43,6 +43,10 @@ def build_model(config, is_pretrain=False):
         from .generativeClassify.unet_ot import generativeClassify
 
         model = generativeClassify(config.MODEL)
+    elif model_type == "GenerativeClassifyDiT_ICFM":
+        from .generativeClassify.dit_icfm import generativeClassify
+
+        model = generativeClassify(config.MODEL)
     else:
         raise NotImplementedError(f"Unkown model: {model_type}")
     return model

@@ -37,6 +37,7 @@ def make_config(device):
                 t_span=20,
                 image_size=image_size,
                 classes=classes,
+                model_type=model_type,
                 diffusion_model=dict(
                     device=device,
                     x_size=(3, image_size, image_size),
