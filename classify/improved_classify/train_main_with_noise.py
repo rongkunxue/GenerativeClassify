@@ -207,7 +207,7 @@ def collect_new_dataloader(accelerator,data_loader, model, config,prefix):
     elif prefix == "noise":
         batch_size = 200
         total_samples = 50000
-        num_batches = total_samples // batch_size
+        num_batches = total_samples // batch_size // accelerator.num_processes
         x1_list = []
         x0_list = []
         label_list = []
@@ -221,6 +221,7 @@ def collect_new_dataloader(accelerator,data_loader, model, config,prefix):
             x0_list.append(x0.cpu())
         x1_ = torch.cat(x1_list, dim=0)
         x0_ = torch.cat(x0_list, dim=0)
+        print(x1_.shape[0]/50000)
         data_to_save = {"x1": x1_, "x0": x0_}
         if accelerator.is_main_process:
             path=config.DATA.checkpoint_path
