@@ -167,13 +167,14 @@ class AverageMeter(object):
 
 def picture_analysis(config, accelerator):
     if config.TRAIN.method == "Pretrain":
-        ### Load the data
+        logp=[]
         data_loader_train, data_loader_val, mixup_fn = build_loader(config,if_analyse=True)
-        model = build_model(config)
-        optimizer = build_optimizer(config, model)
-        for i in range(15):
-            print("i",i)
-            logp=[]
+        real_model = build_model(config)
+        import copy
+        ### Load the data
+        for i in range(11,16):
+            model = copy.deepcopy(real_model)
+            optimizer = build_optimizer(config, model)
             diffusion_model_train_epoch = load_model(
                 path=config.DATA.checkpoint_path,
                 model=model.grlEncoder.diffusionModel.model,
@@ -205,9 +206,10 @@ def picture_analysis(config, accelerator):
                 count+=1
                 if count >20:
                     break
-            log_p_mean = torch.stack(logp).mean()
-            log_p_max = torch.stack(logp).max()
-            log_p_min = torch.stack(logp).min()
+            log_p_mean = torch.stack(logp).mean()/(32.0*32.0)
+            log_p_max = torch.stack(logp).max()/(32.0*32.0)
+            log_p_min = torch.stack(logp).min()/(32.0*32.0)
+            print("i",i)
             print("log_p_mean",log_p_mean)
             print("log_p_max",log_p_max)
             print("log_p_min",log_p_min)

@@ -4,9 +4,9 @@ from accelerate import Accelerator
 from train_main import train
 
 def make_config(device):
-    model_type="ICFM"
+    model_type="OT"
     method="Pretrain"
-    type="GenerativeClassifyUNet_ICFM"
+    type=f"GenerativeClassifyUNet_{model_type}"
     classes = 10
     image_size = 32
     project_name = "Classify_CIFAR-10"
@@ -18,7 +18,7 @@ def make_config(device):
                 batch_size=180,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/home/xrk/EXP/data/CIFAR-10",
+                dataset_path="/root/data/cifar",
                 checkpoint_path=f"./{project_name}/checkpoint",
                 video_save_path=f"./{project_name}/video",
                 dataset="CIFAR-10",
@@ -37,6 +37,7 @@ def make_config(device):
                 t_span=20,
                 image_size=image_size,
                 classes=classes,
+                model_type=model_type,
                 diffusion_model=dict(
                     device=device,
                     x_size=(3, image_size, image_size),

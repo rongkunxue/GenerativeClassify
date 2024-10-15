@@ -1,26 +1,26 @@
-import wandb
+import os
 from easydict import EasyDict
 from accelerate import Accelerator
-from train_main import train
+from picture_analysis import picture_analysis
 
 def make_config(device):
-    model_type="ICFM"
     method="Pretrain"
-    type="GenerativeClassifyUNet_ICFM"
+    model_type="ICFM"
+    type=f"GenerativeClassifyUNet_{model_type}"
     classes = 10
     image_size = 32
-    project_name = "Classify_CIFAR-10"
+    project_name = f"Classify_CIFAR-10_{type}"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
             DEVICE=device,
             DATA=dict(
-                batch_size=180,
+                batch_size=50,
                 classes=classes,
                 img_size=image_size,
                 dataset_path="/home/xrk/EXP/data/CIFAR-10",
-                checkpoint_path=f"./{project_name}/checkpoint",
-                video_save_path=f"./{project_name}/video",
+                checkpoint_path=f"/home/xrk/EXP/Cifar-10-icfm/Classify_CIFAR-10/checkpoint",
+                video_save_path=f"/home/xrk/EXP/Cifar-10/Classify_CIFAR-10/video",
                 dataset="CIFAR-10",
                 AUG=dict(
                     interpolation="bicubic",
@@ -48,7 +48,7 @@ def make_config(device):
                         ),
                     ),
                     path=dict(
-                        sigma=0.0,
+                        type="gvp",
                     ),
                     model=dict(
                         type="velocity_function",
@@ -74,9 +74,9 @@ def make_config(device):
             TEST=dict(
                 seed=0,
                 crop=True,
-                eval_freq=100,
-                generative_freq=100,
-                checkpoint_freq=100,
+                eval_freq=5,
+                generative_freq=10,
+                checkpoint_freq=10,
             ),
         )
     )
@@ -86,9 +86,10 @@ def make_config(device):
 if __name__ == "__main__":
     accelerator = Accelerator()
     config = make_config(accelerator.device)
+    import wandb
 
     wandb.init(
         project=config.PROJECT_NAME,
         config=config,
     )
-    train(config, accelerator)
+    picture_analysis(config, accelerator)
