@@ -6,22 +6,22 @@ from train_main import train
 def make_config(device):
     model_type="ICFM"
     method="Pretrain"
-    type=f"GenerativeClassifyDiT_{model_type}"
-    classes = 10
-    image_size = 32
-    project_name = f"Classify_CIFAR-10_{type}"
+    type="GenerativeClassifyUNet_ICFM"
+    classes = 1000
+    image_size = 64
+    project_name = "Classify_imagent_unet_finetune"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
             DEVICE=device,
             DATA=dict(
-                batch_size=180,
+                batch_size=64,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/root/exp/data",
-                checkpoint_path=f"./{project_name}/checkpoint",
+                dataset_path="/root/exp/data/imagenet_2012",
+                checkpoint_path=f"/mnt/nfs/xuerongkun/imagnet",
                 video_save_path=f"./{project_name}/video",
-                dataset="CIFAR-10",
+                dataset="Imagenet",
                 AUG=dict(
                     interpolation="bicubic",
                     color_jitter=0.4,
