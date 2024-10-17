@@ -107,9 +107,6 @@ class generativeEncoder(nn.Module):
 class generativeClassify(nn.Module):
     def __init__(self, config):
         super(generativeClassify, self).__init__()
-        # if config.method == "Pretrain":
-        #     self.grlEncoder = generativeEncoder(config)
-        # elif config.method == "Finetune":
         self.grlEncoder = generativeEncoder(config)
         self.grlHead = classifyHead(config)
         self.config = config
@@ -123,7 +120,6 @@ class generativeClassify(nn.Module):
         return self.grlEncoder.diffusionModel.flow_matching_loss(x0=x0,x1=x1)
 
     def samplePicture(self):
-        self.grlEncoder.diffusionModel.model.eval()
         return self.grlEncoder.sample_forward_process()
     
     def _init_weights(self):

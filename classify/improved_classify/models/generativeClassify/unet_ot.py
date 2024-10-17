@@ -129,5 +129,5 @@ class generativeClassify(nn.Module):
     def matchingLoss(self,x0,x1):
         return self.grlEncoder.diffusionModel.optimal_transport_flow_matching_loss(x0=x0,x1=x1)
 
-    def samplePicture(self, iteration=0, prefix="forwardImage"):
+    def samplePicture(self):
         return self.grlEncoder.sample_forward_process()
