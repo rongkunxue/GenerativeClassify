@@ -48,7 +48,8 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
     num_steps=len(data_loader)
     idx=0
     for samples, targets in track(
-        data_loader, disable=not accelerator.is_local_main_process
+        data_loader, disable=not accelerator.is_local_main_process,
+        description=lambda: f"Processing Train epoch {epoch}",
     ):
         outputs = model(samples)
         loss = criterion(outputs, targets)
@@ -142,12 +143,9 @@ def analysis_logp(accelerator, model, data_loader, config):
 def analysis_straightness(accelerator, model,config):
     model.eval()
     from grl.generative_models.metric import compute_straightness
-    straightness_list = []
-    for _ in range(10):
-        straightness=compute_straightness(model=model,batch_size=config.DATA.batch_size)
-        straightness_gather=accelerator.gather_for_metrics(straightness)
-        straightness_list.append(straightness_gather)
-    mean_straightness = torch.stack(straightness_list).mean()
+    straightness=compute_straightness(model=model.grlEncoder.diffusionModel,batch_size=config.DATA.batch_size)
+    straightness_gather=accelerator.gather_for_metrics(straightness)
+    mean_straightness = straightness_gather.mean()
     if accelerator.is_main_process:
         wandb.log(
             {"eval/straightness": mean_straightness},
@@ -395,7 +393,7 @@ def train(config, accelerator):
         )
         lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
         for epoch in range(config.TRAIN.iteration):
-            if (epoch+1) % config.TEST.eval_freq == 0:
+            if (epoch) % config.TEST.eval_freq == 0:
                 validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
                 analysis_straightness(accelerator, model,config)
             train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
@@ -409,13 +407,13 @@ def train(config, accelerator):
                     {"analyse/train_logp": train_log, "analyse/epoch": epoch,"analyse/eval_logp": eval_log},
                     commit=False,
                     )
-            # if (epoch + 1) % config.TEST.checkpoint_freq == 0:
-            #     if accelerator.is_local_main_process:
-            #         save_model(
-            #             config.DATA.checkpoint_path,
-            #             model,
-            #             optimizer,
-            #             epoch,
-            #             "GenerativeClassify",
-            #         )
+            if (epoch + 1) % config.TEST.checkpoint_freq == 0:
+                if accelerator.is_local_main_process:
+                    save_model(
+                        config.DATA.checkpoint_path,
+                        model,
+                        optimizer,
+                        epoch,
+                        "GenerativeClassify",
+                    )
                     
