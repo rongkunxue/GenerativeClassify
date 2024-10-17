@@ -1,14 +1,15 @@
 import wandb
 from easydict import EasyDict
 from accelerate import Accelerator
-from train import train
+from train_main import train
 
 def make_config(device):
-    method="Finetune"
-    type="GenerativeClassifyUNet"
-    classes = 200
-    image_size = 64
-    project_name = "Classify_Tiny_imagent_label_smooth"
+    model_type="ICFM"
+    method="Pretrain"
+    type=f"GenerativeClassifyUNet_{model_type}"
+    classes = 10
+    image_size = 32
+    project_name = f"B_{model_type}_{method}_CIFAR-10"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -17,10 +18,10 @@ def make_config(device):
                 batch_size=180,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/mnt/nfs3/zhangjinouwen/dataset/tiny_imagenet_200",
-                checkpoint_path=f"./{project_name}/checkpoint",
-                video_save_path=f"./{project_name}/video",
-                dataset="Tinyimagenet",
+                dataset_path="~/exp",
+                checkpoint_path=f"~/exp",
+                video_save_path=f"~/exp",
+                dataset="CIFAR-10",
                 AUG=dict(
                     interpolation="bicubic",
                     color_jitter=0.4,
@@ -31,10 +32,12 @@ def make_config(device):
                 ),
             ),
             MODEL=dict(
+                method=method,
                 type=type,
                 t_span=20,
                 image_size=image_size,
                 classes=classes,
+                model_type=model_type,
                 diffusion_model=dict(
                     device=device,
                     x_size=(3, image_size, image_size),
@@ -46,7 +49,7 @@ def make_config(device):
                         ),
                     ),
                     path=dict(
-                        type="gvp",
+                        sigma=0.0,
                     ),
                     model=dict(
                         type="velocity_function",
@@ -72,9 +75,9 @@ def make_config(device):
             TEST=dict(
                 seed=0,
                 crop=True,
-                eval_freq=5,
-                generative_freq=50,
-                checkpoint_freq=10,
+                eval_freq=100,
+                generative_freq=100,
+                checkpoint_freq=100,
             ),
         )
     )
@@ -84,10 +87,4 @@ def make_config(device):
 if __name__ == "__main__":
     accelerator = Accelerator()
     config = make_config(accelerator.device)
-    import wandb
-
-    wandb.init(
-        project=config.PROJECT_NAME,
-        config=config,
-    )
     train(config, accelerator)

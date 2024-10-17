@@ -4,12 +4,12 @@ from accelerate import Accelerator
 from train_main import train
 
 def make_config(device):
-    model_type="ICFM"
-    method="Pretrain"
-    type=f"GenerativeClassifyDiT_{model_type}"
+    model_type="OT"
+    method="Finetune"
+    type=f"GenerativeClassifyUNet_{model_type}"
     classes = 10
     image_size = 32
-    project_name = f"Classify_CIFAR-10_{type}"
+    project_name = f"A_{model_type}_{method}_CIFAR-10"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -18,9 +18,9 @@ def make_config(device):
                 batch_size=180,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/root/exp/data",
-                checkpoint_path=f"./{project_name}/checkpoint",
-                video_save_path=f"./{project_name}/video",
+                dataset_path="~/exp",
+                checkpoint_path=f"~/exp",
+                video_save_path=f"~/exp",
                 dataset="CIFAR-10",
                 AUG=dict(
                     interpolation="bicubic",
@@ -35,6 +35,7 @@ def make_config(device):
                 method=method,
                 type=type,
                 t_span=20,
+                t_cutoff=15,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
@@ -67,15 +68,32 @@ def make_config(device):
                 loss_function="LabelSmoothingCrossEntropy", #LabelSmoothingCrossEntropy or SoftTargetCrossEntropy
                 label_smoothing=0.1,
                 training_loss_type="flow_matching",
-                optimizer_type="adam",
-                lr=1e-4,
-                iteration=2000,
+                optimizer_type="adamw",
+                lr=1.25e-4,
+                warmup_lr=1.25e-07,
+                min_lr=1.25e-6,     
+                iteration=200,
+                warmup_iteration=5,
+                decay_iteration=5,
                 device=device,
+                OPTIMIZER=dict(
+                    eps=1e-08,
+                    betas=(0.9, 0.999),
+                    momentum=0.9,
+                    weight_decay=0.05,
+                ),
+                LR_SCHEDULER=dict(
+                    name="cosine",
+                    decay_rate=0.1,
+                    warmup_prefix=True,
+                    gamma=0.1,
+                    multisteps=[],
+                ),
             ),
             TEST=dict(
                 seed=0,
                 crop=True,
-                eval_freq=100,
+                eval_freq=3,
                 generative_freq=100,
                 checkpoint_freq=100,
             ),

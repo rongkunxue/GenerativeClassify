@@ -6,10 +6,10 @@ from train_main import train
 def make_config(device):
     model_type="ICFM"
     method="Pretrain"
-    type="GenerativeClassifyUNet_ICFM"
+    type=f"GenerativeClassifyDiT_{model_type}"
     classes = 10
     image_size = 32
-    project_name = "Classify_CIFAR-10"
+    project_name = f"B_{model_type}_{method}_CIFAR-10"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -18,9 +18,9 @@ def make_config(device):
                 batch_size=180,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/home/xrk/EXP/data/CIFAR-10",
-                checkpoint_path=f"./{project_name}/checkpoint",
-                video_save_path=f"./{project_name}/video",
+                dataset_path="~/exp",
+                checkpoint_path=f"~/exp",
+                video_save_path=f"~/exp",
                 dataset="CIFAR-10",
                 AUG=dict(
                     interpolation="bicubic",
@@ -37,6 +37,7 @@ def make_config(device):
                 t_span=20,
                 image_size=image_size,
                 classes=classes,
+                model_type=model_type,
                 diffusion_model=dict(
                     device=device,
                     x_size=(3, image_size, image_size),
@@ -86,9 +87,4 @@ def make_config(device):
 if __name__ == "__main__":
     accelerator = Accelerator()
     config = make_config(accelerator.device)
-
-    wandb.init(
-        project=config.PROJECT_NAME,
-        config=config,
-    )
     train(config, accelerator)
