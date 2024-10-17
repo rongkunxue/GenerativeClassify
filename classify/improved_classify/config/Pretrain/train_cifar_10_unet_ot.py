@@ -9,7 +9,7 @@ def make_config(device):
     type=f"GenerativeClassifyUNet_{model_type}"
     classes = 10
     image_size = 32
-    project_name = "Classify_CIFAR-10"
+    project_name = f"B_{model_type}_{method}_CIFAR-10"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -18,9 +18,9 @@ def make_config(device):
                 batch_size=180,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/root/data/cifar",
-                checkpoint_path=f"./{project_name}/checkpoint",
-                video_save_path=f"./{project_name}/video",
+                dataset_path="~/exp",
+                checkpoint_path=f"~/exp",
+                video_save_path=f"~/exp",
                 dataset="CIFAR-10",
                 AUG=dict(
                     interpolation="bicubic",
@@ -87,9 +87,4 @@ def make_config(device):
 if __name__ == "__main__":
     accelerator = Accelerator()
     config = make_config(accelerator.device)
-
-    wandb.init(
-        project=config.PROJECT_NAME,
-        config=config,
-    )
     train(config, accelerator)
