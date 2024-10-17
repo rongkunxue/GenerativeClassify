@@ -102,7 +102,7 @@ class generativeEncoder(nn.Module):
         return x_t
 
     def sample_backward_process(self, x, with_grad=False):
-        if hasattr(self.config, "t_length"):
+        if hasattr(self.config, "t_cutoff"):
             t_span = torch.linspace(0.0, 1.0, self.config.t_span, device=x.device)[:self.config.t_cutoff]
         else :
             t_span = torch.linspace(0.0, 1.0, self.config.t_span, device=x.device)
