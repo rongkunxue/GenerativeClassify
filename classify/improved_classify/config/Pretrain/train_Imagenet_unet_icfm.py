@@ -6,10 +6,10 @@ from train_main import train
 def make_config(device):
     model_type="ICFM"
     method="Pretrain"
-    type="GenerativeClassifyUNet_ICFM"
+    type=f"GenerativeClassifyUNet_{model_type}"
     classes = 1000
     image_size = 64
-    project_name = "Classify_imagent_unet_finetune"
+    project_name = f"B_{model_type}_{method}_Imagenet"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -18,9 +18,9 @@ def make_config(device):
                 batch_size=64,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/root/exp/data/imagenet_2012",
-                checkpoint_path=f"/mnt/nfs/xuerongkun/imagnet",
-                video_save_path=f"./{project_name}/video",
+                dataset_path="~/exp",
+                checkpoint_path=f"~/exp",
+                video_save_path=f"~/exp",
                 dataset="Imagenet",
                 AUG=dict(
                     interpolation="bicubic",
@@ -87,9 +87,4 @@ def make_config(device):
 if __name__ == "__main__":
     accelerator = Accelerator()
     config = make_config(accelerator.device)
-
-    wandb.init(
-        project=config.PROJECT_NAME,
-        config=config,
-    )
     train(config, accelerator)
