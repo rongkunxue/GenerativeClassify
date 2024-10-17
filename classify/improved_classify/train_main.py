@@ -420,7 +420,7 @@ def train(config, accelerator):
                     
             if hasattr (config.TEST,"sms_freq") and (epoch) % config.TEST.sms_freq == 0:
                 if accelerator.is_local_main_process:
-                    message = f"Project : {config.PROJECT_NAME} Special : {config.PROJECT_annotations}\n"
+                    message = f"Project : {config.PROJECT_NAME} Special : {config.extra}\n"
                     message += f"epoch : {epoch + 1}\n"
                     message += f"acc_1 : {acc_1}\n"
                     import http.client, urllib
