@@ -416,6 +416,7 @@ def train(config, accelerator):
                         epoch,
                         "GenerativeClassify",
                     )
+                accelerator.wait_for_everyone()
                     
             if hasattr (config.TEST,"sms_freq") and (epoch) % config.TEST.sms_freq == 0:
                 if accelerator.is_local_main_process:
@@ -431,3 +432,4 @@ def train(config, accelerator):
                         "message": message, 
                     }), { "Content-type": "application/x-www-form-urlencoded" })
                     conn.getresponse()
+                accelerator.wait_for_everyone()
