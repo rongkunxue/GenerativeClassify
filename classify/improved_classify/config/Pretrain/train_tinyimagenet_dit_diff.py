@@ -21,7 +21,7 @@ def make_config(device):
                 dataset_path="~/exp",
                 checkpoint_path=f"~/exp",
                 video_save_path=f"~/exp",
-                dataset="CIFAR-10",
+                dataset="Tinyimagenet",
                 AUG=dict(
                     interpolation="bicubic",
                     color_jitter=0.4,

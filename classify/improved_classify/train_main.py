@@ -49,7 +49,7 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
     idx=0
     for samples, targets in track(
         data_loader, disable=not accelerator.is_local_main_process,
-        description=lambda: f"Processing Train epoch {epoch}",
+        description=f"Processing Train epoch {epoch}",
     ):
         outputs = model(samples)
         loss = criterion(outputs, targets)
@@ -131,7 +131,7 @@ def analysis_logp(accelerator, model, data_loader, config):
                 using_Hutchinson_trace_estimator=True,
             )
         log_p.append(logp)
-        if count == 10:
+        if count == 2:
             break
     mean_log_p = torch.stack(log_p).mean()
     #todo: need to check the normalization
