@@ -280,8 +280,13 @@ def train(config, accelerator):
             config=config,
             mode=wandb_mode  
         )
+        if hasattr(config, "extra"):
+            wandb.run.name=config.extra
+            wandb.run.save()
+    accelerator.wait_for_everyone()
     
     if config.TRAIN.method == "Pretrain":
+        accelerator.print("Pretrain")
         ### Load the data
         data_loader_train, data_loader_val, mixup_fn = build_loader(config)
         model = build_model(config)
@@ -353,6 +358,7 @@ def train(config, accelerator):
             
         
     if config.TRAIN.method == "Finetune" or config.TRAIN.method == "Pretrain":
+        accelerator.print("Finetune")
         data_loader_train, data_loader_val, mixup_fn = build_loader(config)
         model = build_model(config)
         optimizer = build_optimizer(config, model)
