@@ -14,7 +14,6 @@ from models import build_model
 from torch_tool import build_optimizer, build_scheduler
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 import os
-
 import matplotlib
 import cv2
 matplotlib.use("Agg")
@@ -62,31 +61,6 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         if accelerator.is_main_process:
             wandb.log(
                 {"train/loss": loss, "train/epoch": epoch},
-                commit=True,
-            )
-    return 0
-
-def train_epoch_withflowmaching(accelerator, model, criterion, data_loader, optimizer,lr_scheduler, epoch):
-    model.train()
-    num_steps=len(data_loader)
-    idx=0
-    for samples, targets in track(
-        data_loader, disable=not accelerator.is_local_main_process
-    ):
-        outputs = model(samples)
-        loss1 = criterion(outputs, targets)
-        x0 = model.grlEncoder.diffusionModel.gaussian_generator(samples.shape[0]).to(samples.device)
-        loss2 = model.matchingLoss(x0=x0,x1=samples)
-        loss = loss1+0.1*loss2
-        optimizer.zero_grad()
-        accelerator.backward(loss)
-        optimizer.step()
-        lr_scheduler.step_update(epoch * num_steps + idx)
-        idx+=1
-        # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
-        if accelerator.is_main_process:
-            wandb.log(
-                {"train/loss": loss, "train/epoch": epoch,"train/loss1": loss1,"train/loss2": loss2},
                 commit=True,
             )
     return 0
@@ -197,8 +171,7 @@ def generative_picture(accelerator, model, epoch,config):
             f"Tinyimage",
         )
 
-@torch.no_grad()
-def collect_new_dataloader(accelerator,data_loader, model, config,prefix=None):
+
     x1_list = []
     x0_list = []
     label_list = []
@@ -446,120 +419,3 @@ def train(config, accelerator):
             #             "GenerativeClassify",
             #         )
                     
-
-    # if config.TRAIN.method == "Recitified_collect":
-    #     data_loader_train, data_loader_val, mixup_fn = build_loader(config,True)
-    #     model = build_model(config)
-    #     optimizer = build_optimizer(config, model)
-        
-    #     if (
-    #         hasattr(config.DATA, "checkpoint_path")
-    #         and config.DATA.checkpoint_path is not None
-    #     ):
-    #         load_model(
-    #                 path=config.DATA.checkpoint_path,
-    #                 model=model,
-    #                 optimizer=None,
-    #                 prefix="GenerativeClassify",
-    #         )
-    #     else:
-    #         raise NotImplementedError("Please provide the checkpoint path")
-
-    #     (
-    #     model.grlEncoder.diffusionModel.model,
-    #     model.grlHead,
-    #     data_loader_train,
-    #     data_loader_val,
-    #     optimizer,
-    #     ) = accelerator.prepare(
-    #         model.grlEncoder.diffusionModel.model,
-    #         model.grlHead,
-    #         data_loader_train,
-    #         data_loader_val,
-    #         optimizer,
-    #     )
-        
-    #     collect_new_dataloader(accelerator,data_loader_train, model, config,"train")
-    #     collect_new_dataloader(accelerator,data_loader_val, model, config,"test")
-
-
-    # # if config.TRAIN.method == "Recitified_collect" or config.TRAIN.method == "Recitified":   
-    #     data_loader_train, data_loader_val, mixup_fn = build_loader(config)
-    #     train_data=torch.load(f"{config.DATA.checkpoint_path}/train_new_data_{config.PROJECT_NAME}.pt")
-    #     test_data=torch.load(f"{config.DATA.checkpoint_path}/test_new_data_{config.PROJECT_NAME}.pt")
-    #     x0=torch.cat([train_data["x0"],test_data["x0"]],dim=0)
-    #     x1=torch.cat([train_data["x1"],test_data["x1"]],dim=0)
-        
-    #     dataset = torch.utils.data.TensorDataset(x0,x1)
-    #     dataloader = torch.utils.data.DataLoader(
-    #         dataset,
-    #         batch_size=config.DATA.batch_size,
-    #         shuffle=True,
-    #         num_workers=8,
-    #         pin_memory=True,
-    #     )
-    #     model = build_model(config)
-    #     if (
-    #         hasattr(config.DATA, "checkpoint_path")
-    #         and config.DATA.checkpoint_path is not None
-    #     ):
-    #         load_model(
-    #                 path=config.DATA.checkpoint_path,
-    #                 model=model,
-    #                 optimizer=None,
-    #                 prefix="GenerativeClassify",
-    #         )
-    #     else:
-    #         raise NotImplementedError("Please provide the checkpoint path")
-        
-    #     import copy
-    #     recitified_model=copy.deepcopy(model)
-    #     optimizer = torch.optim.Adam(
-    #         recitified_model.grlEncoder.diffusionModel.model.parameters(),
-    #         lr=config.TRAIN.lr,
-    #     )    
-        
-    #     (
-    #     recitified_model.grlEncoder.diffusionModel.model,
-    #     recitified_model.grlHead,
-    #     dataloader,
-    #     data_loader_val,
-    #     optimizer,
-    #     ) = accelerator.prepare(
-    #         recitified_model.grlEncoder.diffusionModel.model,
-    #         recitified_model.grlHead,
-    #         dataloader,
-    #         data_loader_val,
-    #         optimizer,
-    #     )
-    #     if config.TRAIN.loss_function == "CrossEntropy":
-    #         criterion = torch.nn.CrossEntropyLoss()
-    #     elif config.TRAIN.loss_function == "LabelSmoothingCrossEntropy":
-    #         criterion = LabelSmoothingCrossEntropy(smoothing=config.TRAIN.label_smoothing)
-    #     elif config.TRAIN.loss_function == "SoftTargetCrossEntropy":
-    #         criterion = SoftTargetCrossEntropy()
-    #     else:
-    #         raise NotImplementedError
-    #     for epoch in range(config.TRAIN.iteration):
-    #         if (epoch) % config.TEST.eval_freq == 0:
-    #             validate(accelerator, recitified_model, data_loader_val, criterion, epoch,mixup_fn)
-    #         train_recitified_flow_matching(accelerator, recitified_model,dataloader, optimizer, epoch)
-    #         # if hasattr(config.Train,"flow_matching") and config.Train.flow_matching:
-    #         #     if model.type=="ICFM":
-    #         #         train_epoch_withflowmaching(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
-    #         #     elif model.type=="Diff":
-    #         #         raise NotImplementedError("will write the method")                     
-    #         #     else:
-    #         #         raise NotImplementedError("Model type not implemented")
-    #         # else :
-    #         #     train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
-    #         if (epoch + 1) % config.TEST.checkpoint_freq == 0:
-    #             if accelerator.is_local_main_process:
-    #                 save_model(
-    #                     config.DATA.checkpoint_path,
-    #                     model,
-    #                     optimizer,
-    #                     epoch,
-    #                     "GenerativeClassify_recitified",
-    #                 )
-    
