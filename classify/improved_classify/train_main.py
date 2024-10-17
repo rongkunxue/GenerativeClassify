@@ -2,7 +2,7 @@ import os
 from easydict import EasyDict
 import torch
 from torch.utils.data import Dataset
-
+import ipdb
 import wandb
 import torch
 import numpy as np
@@ -141,7 +141,7 @@ def train_recitified_flow_matching(accelerator, model, data_loader, optimizer, e
     return 0
 
 @torch.no_grad()
-def analysis_logp(accelerator, model, data_loader, epoch):
+def analysis_logp(accelerator, model, data_loader, config):
     model.eval()
     from grl.generative_models.metric import compute_likelihood
     #only count 10 iteration in dataset
@@ -160,7 +160,11 @@ def analysis_logp(accelerator, model, data_loader, epoch):
         if count == 10:
             break
     mean_log_p = torch.stack(log_p).mean()
-    return mean_log_p
+    #todo: need to check the normalization
+    ipdb.set_trace()
+    mean_norm = mean_log_p/(samples.shape[2]*samples.shape[3])
+    
+    return mean_norm
 
 @torch.no_grad()
 def generative_picture(accelerator, model, epoch,config):
@@ -346,10 +350,11 @@ def train(config, accelerator):
                 train_log=analysis_logp(accelerator, model, data_loader_train, epoch)
                 eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
                 
-                wandb.log(
-                {"eval/train_logp": train_log, "eval/epoch": epoch,"eval/eval_logp": eval_log},
-                commit=False,
-                )
+                if accelerator.is_main_process:
+                    wandb.log(
+                    {"analyse/train_logp": train_log, "analyse/epoch": epoch,"eanalyse/eval_logp": eval_log},
+                    commit=False,
+                    )
                 
         
             if (epoch + 1) % config.TEST.generative_freq == 0:
@@ -413,6 +418,16 @@ def train(config, accelerator):
                     raise NotImplementedError("Model type not implemented")
             else :
                 train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
+            
+            if hasattr (config.TEST,"analyse_freq") and (epoch+1) % config.TEST.analyse_freq == 0:
+                train_log=analysis_logp(accelerator, model, data_loader_train, epoch)
+                eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
+                
+                if accelerator.is_main_process:
+                    wandb.log(
+                    {"analyse/train_logp": train_log, "analyse/epoch": epoch,"analyse/eval_logp": eval_log},
+                    commit=False,
+                    )
             # if (epoch + 1) % config.TEST.checkpoint_freq == 0:
             #     if accelerator.is_local_main_process:
             #         save_model(
@@ -424,43 +439,43 @@ def train(config, accelerator):
             #         )
                     
 
-    if config.TRAIN.method == "Recitified_collect":
-        data_loader_train, data_loader_val, mixup_fn = build_loader(config,True)
-        model = build_model(config)
-        optimizer = build_optimizer(config, model)
+    # if config.TRAIN.method == "Recitified_collect":
+    #     data_loader_train, data_loader_val, mixup_fn = build_loader(config,True)
+    #     model = build_model(config)
+    #     optimizer = build_optimizer(config, model)
         
-        if (
-            hasattr(config.DATA, "checkpoint_path")
-            and config.DATA.checkpoint_path is not None
-        ):
-            load_model(
-                    path=config.DATA.checkpoint_path,
-                    model=model,
-                    optimizer=None,
-                    prefix="GenerativeClassify",
-            )
-        else:
-            raise NotImplementedError("Please provide the checkpoint path")
+    #     if (
+    #         hasattr(config.DATA, "checkpoint_path")
+    #         and config.DATA.checkpoint_path is not None
+    #     ):
+    #         load_model(
+    #                 path=config.DATA.checkpoint_path,
+    #                 model=model,
+    #                 optimizer=None,
+    #                 prefix="GenerativeClassify",
+    #         )
+    #     else:
+    #         raise NotImplementedError("Please provide the checkpoint path")
 
-        (
-        model.grlEncoder.diffusionModel.model,
-        model.grlHead,
-        data_loader_train,
-        data_loader_val,
-        optimizer,
-        ) = accelerator.prepare(
-            model.grlEncoder.diffusionModel.model,
-            model.grlHead,
-            data_loader_train,
-            data_loader_val,
-            optimizer,
-        )
+    #     (
+    #     model.grlEncoder.diffusionModel.model,
+    #     model.grlHead,
+    #     data_loader_train,
+    #     data_loader_val,
+    #     optimizer,
+    #     ) = accelerator.prepare(
+    #         model.grlEncoder.diffusionModel.model,
+    #         model.grlHead,
+    #         data_loader_train,
+    #         data_loader_val,
+    #         optimizer,
+    #     )
         
-        collect_new_dataloader(accelerator,data_loader_train, model, config,"train")
-        collect_new_dataloader(accelerator,data_loader_val, model, config,"test")
+    #     collect_new_dataloader(accelerator,data_loader_train, model, config,"train")
+    #     collect_new_dataloader(accelerator,data_loader_val, model, config,"test")
 
 
-    if config.TRAIN.method == "Recitified_collect" or config.TRAIN.method == "Recitified":   
+    # if config.TRAIN.method == "Recitified_collect" or config.TRAIN.method == "Recitified":   
         data_loader_train, data_loader_val, mixup_fn = build_loader(config)
         train_data=torch.load(f"{config.DATA.checkpoint_path}/train_new_data_{config.PROJECT_NAME}.pt")
         test_data=torch.load(f"{config.DATA.checkpoint_path}/test_new_data_{config.PROJECT_NAME}.pt")

@@ -104,7 +104,10 @@ class generativeEncoder(nn.Module):
         return x_t
 
     def sample_backward_process(self, x, with_grad=False):
-        t_span = torch.linspace(0.0, 1.0, self.config.t_span).to(x.device)
+        if hasattr(self.config, "t_length"):
+            t_span = torch.linspace(0.0, 1.0, self.config.t_span, device=x.device)[self.config.t_cutoff:]
+        else :
+            t_span = torch.linspace(0.0, 1.0, self.config.t_span, device=x.device)
         x_t = self.diffusionModel.forward_sample(
             x=x, t_span=t_span, with_grad=with_grad
         )
