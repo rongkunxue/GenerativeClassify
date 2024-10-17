@@ -391,7 +391,7 @@ def train(config, accelerator):
         for epoch in range(config.TRAIN.iteration):
             if (epoch+1) % config.TEST.eval_freq == 0:
                 validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
-            if hasattr(config.Train,"flow_matching") and config.Train.flow_matching:
+            if hasattr(config.TRAIN,"flow_matching") and config.Train.flow_matching:
                 if model.type=="ICFM":
                     train_epoch_withflowmaching(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
                 elif model.type=="Diff":
