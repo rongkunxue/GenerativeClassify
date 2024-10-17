@@ -120,7 +120,6 @@ def analysis_logp(accelerator, model, data_loader, config):
     model.eval()
     from grl.generative_models.metric import compute_likelihood,compute_straightness
     count = 0
-    log_p = []
     for samples, targets in track(
         data_loader, disable=not accelerator.is_local_main_process
     ):
@@ -130,13 +129,12 @@ def analysis_logp(accelerator, model, data_loader, config):
                 t=torch.linspace(0.0, 1.0, 100).to(samples.device),
                 using_Hutchinson_trace_estimator=True,
             )
-        log_p.append(logp)
-        if count == 2:
-            break
-    mean_log_p = torch.stack(log_p).mean()
+        logp=accelerator.gather_for_metrics(logp)
+        logp_mean=logp.mean()
+        break
     #todo: need to check the normalization
     ipdb.set_trace()
-    mean_norm = mean_log_p/(samples.shape[2]*samples.shape[3])
+    mean_norm = logp_mean/(samples.shape[2]*samples.shape[3])
     return mean_norm
 
 @torch.no_grad()
@@ -271,7 +269,7 @@ def validate(accelerator, model, val_loader, criterion, epoch,mixup_fn=None):
                 },
                 commit=False,
             )
-    return 0
+    return top1.avg
 
 
 def train(config, accelerator):
@@ -394,19 +392,21 @@ def train(config, accelerator):
         lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
         for epoch in range(config.TRAIN.iteration):
             if (epoch) % config.TEST.eval_freq == 0:
-                validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
+                acc_1=validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
             train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
             
             if hasattr (config.TEST,"analyse_freq") and (epoch+1) % config.TEST.analyse_freq == 0:
                 train_log=analysis_logp(accelerator, model, data_loader_train, epoch)
-                eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
-                analysis_straightness(accelerator, model,config)
+                # eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
+                # analysis_straightness(accelerator, model,config)
                 
                 if accelerator.is_main_process:
                     wandb.log(
-                    {"analyse/train_logp": train_log, "analyse/epoch": epoch,"analyse/eval_logp": eval_log},
+                    {"analyse/train_logp": train_log, "analyse/epoch": epoch},
                     commit=False,
                     )
+                
+                    
             if (epoch + 1) % config.TEST.checkpoint_freq == 0:
                 if accelerator.is_local_main_process:
                     save_model(
@@ -417,3 +417,17 @@ def train(config, accelerator):
                         "GenerativeClassify",
                     )
                     
+            if hasattr (config.TEST,"sms_freq") and (epoch) % config.TEST.sms_freq == 0:
+                if accelerator.is_local_main_process:
+                    message = f"Project : {config.PROJECT_NAME} Special : {config.PROJECT_annotations}\n"
+                    message += f"epoch : {epoch + 1}\n"
+                    message += f"acc_1 : {acc_1}\n"
+                    import http.client, urllib
+                    conn = http.client.HTTPSConnection("api.pushover.net:443")
+                    conn.request("POST", "/1/messages.json",
+                    urllib.parse.urlencode({
+                        "token": "a7rgfcc4v14rfpkv3j8i5mnsvuiwsv",  
+                        "user": "ufam55v8r8425rc79e45aeo2thb1xc",    
+                        "message": message, 
+                    }), { "Content-type": "application/x-www-form-urlencoded" })
+                    conn.getresponse()
