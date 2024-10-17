@@ -395,12 +395,12 @@ def train(config, accelerator):
         for epoch in range(config.TRAIN.iteration):
             if (epoch) % config.TEST.eval_freq == 0:
                 validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
-                analysis_straightness(accelerator, model,config)
             train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
             
             if hasattr (config.TEST,"analyse_freq") and (epoch+1) % config.TEST.analyse_freq == 0:
                 train_log=analysis_logp(accelerator, model, data_loader_train, epoch)
                 eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
+                analysis_straightness(accelerator, model,config)
                 
                 if accelerator.is_main_process:
                     wandb.log(
