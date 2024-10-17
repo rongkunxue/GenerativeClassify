@@ -59,10 +59,11 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         lr_scheduler.step_update(epoch * num_steps + idx)
         idx+=1
         # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
-        wandb.log(
-            {"train/loss": loss, "train/epoch": epoch},
-            commit=True,
-        )
+        if accelerator.is_main_process:
+            wandb.log(
+                {"train/loss": loss, "train/epoch": epoch},
+                commit=True,
+            )
     return 0
 
 def train_epoch_withflowmaching(accelerator, model, criterion, data_loader, optimizer,lr_scheduler, epoch):
@@ -83,10 +84,11 @@ def train_epoch_withflowmaching(accelerator, model, criterion, data_loader, opti
         lr_scheduler.step_update(epoch * num_steps + idx)
         idx+=1
         # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
-        wandb.log(
-            {"train/loss": loss, "train/epoch": epoch,"train/loss1": loss1,"train/loss2": loss2},
-            commit=True,
-        )
+        if accelerator.is_main_process:
+            wandb.log(
+                {"train/loss": loss, "train/epoch": epoch,"train/loss1": loss1,"train/loss2": loss2},
+                commit=True,
+            )
     return 0
 
 def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
@@ -98,10 +100,11 @@ def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
-        wandb.log(
-            {"train/loss": loss, "train/epoch": epoch},
-            commit=True,
-        )
+        if accelerator.is_main_process:
+            wandb.log(
+                {"train/loss": loss, "train/epoch": epoch},
+                commit=True,
+            )
     return 0
 
 def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
@@ -114,10 +117,11 @@ def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
-        wandb.log(
-            {"train/loss": loss, "train/epoch": epoch},
-            commit=True,
-        )
+        if accelerator.is_main_process:
+            wandb.log(
+                {"train/loss": loss, "train/epoch": epoch},
+                commit=True,
+            )
     return 0
 
 def train_recitified_flow_matching(accelerator, model, data_loader, optimizer, epoch):
@@ -129,10 +133,11 @@ def train_recitified_flow_matching(accelerator, model, data_loader, optimizer, e
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
-        wandb.log(
-            {"train/loss": loss, "train/epoch": epoch},
-            commit=True,
-        )
+        if accelerator.is_main_process:
+            wandb.log(
+                {"train/loss": loss, "train/epoch": epoch},
+                commit=True,
+            )
     return 0
 
 @torch.no_grad()
@@ -266,19 +271,27 @@ def validate(accelerator, model, val_loader, criterion, epoch,mixup_fn=None):
             losses.update(loss.item(), outputs.size(0))
             top1.update(acc1[0], outputs.size(0))
             top5.update(acc5[0], outputs.size(0))
-        wandb.log(
-            {
-                f"eval/acc1": top1.avg,
-                f"eval/acc5": top5.avg,
-                f"eval/loss": losses.avg,
-                f"eval/epoch": epoch,
-            },
-            commit=False,
-        )
+        if accelerator.is_main_process:
+            wandb.log(
+                {
+                    f"eval/acc1": top1.avg,
+                    f"eval/acc5": top5.avg,
+                    f"eval/loss": losses.avg,
+                    f"eval/epoch": epoch,
+                },
+                commit=False,
+            )
     return 0
 
 
 def train(config, accelerator):
+    if accelerator.is_main_process:
+        wandb_mode = "online" if accelerator.state.num_processes > 1 else "offline"
+        wandb.init(
+            project=config.PROJECT_NAME,
+            config=config,
+            mode=wandb_mode  
+        )
     
     if config.TRAIN.method == "Pretrain":
         ### Load the data
@@ -400,15 +413,15 @@ def train(config, accelerator):
                     raise NotImplementedError("Model type not implemented")
             else :
                 train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
-            if (epoch + 1) % config.TEST.checkpoint_freq == 0:
-                if accelerator.is_local_main_process:
-                    save_model(
-                        config.DATA.checkpoint_path,
-                        model,
-                        optimizer,
-                        epoch,
-                        "GenerativeClassify",
-                    )
+            # if (epoch + 1) % config.TEST.checkpoint_freq == 0:
+            #     if accelerator.is_local_main_process:
+            #         save_model(
+            #             config.DATA.checkpoint_path,
+            #             model,
+            #             optimizer,
+            #             epoch,
+            #             "GenerativeClassify",
+            #         )
                     
 
     if config.TRAIN.method == "Recitified_collect":
