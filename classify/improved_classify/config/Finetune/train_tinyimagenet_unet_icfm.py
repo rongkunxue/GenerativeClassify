@@ -4,7 +4,7 @@ from accelerate import Accelerator
 from train_main import train
 
 def make_config(device):
-    model_type="Diff"
+    model_type="ICFM"
     method="Finetune"
     type=f"GenerativeClassifyUNet_{model_type}"
     classes = 200
@@ -35,6 +35,7 @@ def make_config(device):
                 method=method,
                 type=type,
                 t_span=20,
+                t_cutoff=17,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
@@ -49,7 +50,7 @@ def make_config(device):
                         ),
                     ),
                     path=dict(
-                        type="gvp",
+                        sigma=0.0,
                     ),
                     model=dict(
                         type="velocity_function",
@@ -77,9 +78,6 @@ def make_config(device):
                 iteration=200,
                 warmup_iteration=5,
                 decay_iteration=5,
-                
-                
-                
                 device=device,
                 OPTIMIZER=dict(
                     eps=1e-08,
