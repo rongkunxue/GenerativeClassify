@@ -164,37 +164,9 @@ def generative_picture(accelerator, model, epoch,config):
             img.cpu().detach(),
             config.DATA.video_save_path,
             epoch,
-            f"Tinyimage",
+            f"Image",
         )
-
-
-    x1_list = []
-    x0_list = []
-    label_list = []
-    model.eval()
-    for batch_data, batch_label in track(
-        data_loader, disable=not accelerator.is_local_main_process
-    ):
-        t_span = torch.linspace(0.0, 1.0, 20).to(config.TRAIN.device)
-        x0= model.grlEncoder.diffusionModel.forward_sample(
-                t_span=t_span, x=batch_data,with_grad=False
-            ).detach()
-        x1, x0, label = accelerator.gather_for_metrics(
-                (batch_data, x0, batch_label)
-            )
-        x1_list.append(x1.cpu())
-        label_list.append(label.cpu())
-        x0_list.append(x0.cpu())
-    x1_ = torch.cat(x1_list, dim=0)
-    x0_ = torch.cat(x0_list, dim=0)
-    label_ = torch.cat(label_list, dim=0)
-    data_to_save = {"x1": x1_, "x0": x0_, "label": label_}
-    if accelerator.is_main_process:
-        path=config.DATA.checkpoint_path
-        torch.save(
-            data_to_save,
-            f"{path}/{prefix}_new_data_{config.PROJECT_NAME}.pt",
-        )
+    accelerator.wait_for_everyone()
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
