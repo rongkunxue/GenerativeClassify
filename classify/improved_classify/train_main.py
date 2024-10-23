@@ -306,6 +306,7 @@ def train(config, accelerator):
                         epoch,
                         "DiffusionModel_Pretrain",
                     )
+                accelerator.wait_for_everyone()
                     
             if hasattr (config.TEST,"analyse_freq") and (epoch+1) % config.TEST.analyse_freq == 0:
                 train_log=analysis_logp(accelerator, model, data_loader_train, epoch)

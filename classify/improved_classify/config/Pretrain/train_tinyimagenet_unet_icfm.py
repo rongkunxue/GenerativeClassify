@@ -18,9 +18,9 @@ def make_config(device):
                 batch_size=128,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="~/exp",
-                checkpoint_path=f"~/exp",
-                video_save_path=f"~/exp",
+                dataset_path="/root/exp/tiny-imagenet-200",
+                checkpoint_path=f"/root/exp/tiny_finetune",
+                video_save_path=f"/root/exp/tiny_finetune",
                 dataset="Tinyimagenet",
                 AUG=dict(
                     interpolation="bicubic",
