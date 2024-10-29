@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/rongkunxue/GenerativeClassify/blob/main/classify/improved_classify/generativeClassify.svg" alt="generativeClassify Logo" width="50"/>
+  <img src="https://github.com/rongkunxue/GenerativeClassify/blob/main/classify/improved_classify/generativeClassify.svg" alt="generativeClassify Logo" width=“100"/>
   <h1>GenerativeClassify</h1>
 </p>
 
