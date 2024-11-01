@@ -121,11 +121,11 @@ class generativeClassify(nn.Module):
         self.grlHead = classifyHead(config)
         self.config = config
 
-    def forward(self, x):
-        images = self.grlEncoder.sample_backward_process(x=x, with_grad=True)
+    def forward(self, x,with_grad=True):
+        images = self.grlEncoder.sample_backward_process(x=x, with_grad=with_grad)
         output = self.grlHead(images)
         return output
-
+    
     def matchingLoss(self,x0,x1):
         return self.grlEncoder.diffusionModel.optimal_transport_flow_matching_loss(x0=x0,x1=x1)
 

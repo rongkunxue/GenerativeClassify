@@ -32,10 +32,11 @@ def build_loader(config,if_analyse=False):
     dataset_train = build_dataset(is_train=True, config=config,if_analyse=if_analyse)
     dataset_val = build_dataset(is_train=False, config=config,if_analyse=if_analyse)
 
+
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
         batch_size=config.DATA.batch_size,
-        shuffle=True,
+        shuffle=True if if_analyse else False,
         num_workers=8,
         pin_memory=True,
     )
@@ -43,24 +44,24 @@ def build_loader(config,if_analyse=False):
     data_loader_val = torch.utils.data.DataLoader(
         dataset_val,
         batch_size=config.DATA.batch_size,
-        shuffle=False,
+        shuffle=False ,
         num_workers=8,
         pin_memory=True,
     )
-    if hasattr(config.DATA, "MIXUP"):
-        mixup_fn = Mixup(
-            mixup_alpha=config.DATA.MIXUP.mixup,
-            cutmix_alpha=config.DATA.MIXUP.cutmix,
-            cutmix_minmax=config.DATA.MIXUP.cutminmax,
-            prob=config.DATA.MIXUP.mixup_prob,
-            switch_prob=config.DATA.MIXUP.mixup_switch_prob,
-            mode=config.DATA.MIXUP.mixup_mode,
-            label_smoothing=config.TRAIN.label_smoothing,
-            num_classes=config.MODEL.classes,
-        )
-    else:
-        mixup_fn = None
-    return data_loader_train, data_loader_val, mixup_fn
+    # if hasattr(config.DATA, "MIXUP"):
+    #     mixup_fn = Mixup(
+    #         mixup_alpha=config.DATA.MIXUP.mixup,
+    #         cutmix_alpha=config.DATA.MIXUP.cutmix,
+    #         cutmix_minmax=config.DATA.MIXUP.cutminmax,
+    #         prob=config.DATA.MIXUP.mixup_prob,
+    #         switch_prob=config.DATA.MIXUP.mixup_switch_prob,
+    #         mode=config.DATA.MIXUP.mixup_mode,
+    #         label_smoothing=config.TRAIN.label_smoothing,
+    #         num_classes=config.MODEL.classes,
+    #     )
+    # else:
+    #     mixup_fn = None
+    return data_loader_train, data_loader_val, None
 
 
 def build_dataset(is_train, config,if_analyse):
@@ -69,8 +70,8 @@ def build_dataset(is_train, config,if_analyse):
             [
             transforms.Resize(config.DATA.img_size),
             transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                std=[0.229, 0.224, 0.225]),
+            transforms.Normalize(mean=[0.5, 0.5, 0.5],
+                                std=[0.5, 0.5, 0.5]),
             ]
         )
     else:
@@ -108,28 +109,6 @@ def build_dataset(is_train, config,if_analyse):
     else:
         raise NotImplementedError("We only support ImageNet Now.")
     return dataset
-
-
-# def build_transform(is_train, config):
-#     if is_train:
-#         import timm
-#         from timm.data.auto_augment import RandAugment, rand_augment_ops
-#         ops = rand_augment_ops(magnitude=9)
-#         transform = transforms.Compose([
-#             timm.data.transforms.RandomResizedCropAndInterpolation(size=config.DATA.img_size),
-#             transforms.RandomHorizontalFlip(p=0.5),
-#             RandAugment(ops=ops, num_layers=2),
-#             transforms.ToTensor(),
-#             transforms.Normalize(mean=[0.4850, 0.4560, 0.4060], std=[0.2290, 0.2240, 0.2250])
-#         ])
-#     else :
-#         transform = transforms.Compose([
-#             transforms.Resize(100, interpolation=transforms.InterpolationMode.BICUBIC, antialias=True),
-#             transforms.CenterCrop(config.DATA.img_size),
-#             transforms.ToTensor(),
-#             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-#         ])
-#     return transform
 
 
 def build_transform(is_train, config):

@@ -121,8 +121,8 @@ class generativeClassify(nn.Module):
         self.grlHead = classifyHead(config)
         self.config = config
 
-    def forward(self, x):
-        images = self.grlEncoder.sample_backward_process(x=x, with_grad=True)
+    def forward(self, x,with_grad=True):
+        images = self.grlEncoder.sample_backward_process(x=x, with_grad=with_grad)
         output = self.grlHead(images)
         return output
 
