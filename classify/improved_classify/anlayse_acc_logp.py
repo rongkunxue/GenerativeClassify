@@ -26,22 +26,6 @@ from rich.progress import track
 import torchvision
 
 
-def imagenet_save(img, save_path="./", iteration=0, prefix="img"):
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    import torchvision.transforms as transforms
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
-    inv_normalize = transforms.Normalize(
-        mean=[-m/s for m, s in zip(mean, std)],
-        std=[1/s for s in std]
-    )
-    img = inv_normalize(img)
-    npimg = img.cpu().numpy()
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.axis("off")
-    save_path = os.path.join(save_path, f"{prefix}_{iteration}.png")
-    plt.savefig(save_path)
 
 def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_scheduler, epoch):
     model.train()
@@ -99,21 +83,6 @@ def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
             )
     return 0
 
-def train_recitified_flow_matching(accelerator, model, data_loader, optimizer, epoch):
-    model.train()
-    for x0, x1 in track(
-        data_loader, disable=not accelerator.is_local_main_process
-    ):
-        loss = model.matchingLoss(x0=x0,x1=x1)
-        optimizer.zero_grad()
-        accelerator.backward(loss)
-        optimizer.step()
-        if accelerator.is_main_process:
-            wandb.log(
-                {"train/loss": loss, "train/epoch": epoch},
-                commit=True,
-            )
-    return 0
 
 @torch.no_grad()
 def analysis_logp(accelerator, model, data_loader, config):
@@ -138,36 +107,6 @@ def analysis_logp(accelerator, model, data_loader, config):
     logp_train_mean =  torch.stack(logp_train_list).mean().item()/(32.0*32.0)
     return logp_train_mean
 
-@torch.no_grad()
-def analysis_straightness(accelerator, model,config):
-    model.eval()
-    from grl.generative_models.metric import compute_straightness
-    straightness=compute_straightness(model=model.grlEncoder.diffusionModel,batch_size=config.DATA.batch_size)
-    straightness_gather=accelerator.gather_for_metrics(straightness)
-    mean_straightness = straightness_gather.mean()
-    if accelerator.is_main_process:
-        wandb.log(
-            {"eval/straightness": mean_straightness},
-            commit=False,
-        )
-    return mean_straightness
-
-@torch.no_grad()
-def generative_picture(accelerator, model, epoch,config):
-    model.eval()
-    img=model.samplePicture()
-    img=accelerator.gather_for_metrics(img)
-    img = torchvision.utils.make_grid(
-            img, value_range=(-1, 1), padding=0, nrow=4
-        )
-    if accelerator.is_local_main_process:
-        imagenet_save(
-            img.cpu().detach(),
-            config.DATA.video_save_path,
-            epoch,
-            f"Image",
-        )
-    accelerator.wait_for_everyone()
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
@@ -223,7 +162,7 @@ def validate(accelerator, model, val_loader, criterion, epoch,mixup_fn=None):
                 images, targets_mixup=mixup_fn(images, targets)
             else :
                 targets_mixup=targets
-            outputs = model(images)
+            outputs = model(images,False)
             loss = criterion(outputs, targets_mixup)
             
             outputs, targets = accelerator.gather_for_metrics((outputs, targets))
@@ -259,169 +198,87 @@ def train(config, accelerator):
     accelerator.wait_for_everyone()
     log_dict={"acc1":[],"train_logp":[],"eval_logp":[],"epoch":[]}
     
+    data_loader_train, data_loader_val, mixup_fn = build_loader(config)
+    data_loader_train_analyse, data_loader_val_analyse, mixup_fn = build_loader(config,True)
     
-    if config.TRAIN.method == "Pretrain":
-        accelerator.print("Pretrain")
-        ### Load the data
-        data_loader_train, data_loader_val, mixup_fn = build_loader(config)
-        model = build_model(config)
-        optimizer = build_optimizer(config, model)
-        
-        ### Load the model
-        if (
-                hasattr(config.DATA, "checkpoint_path")
-                and config.DATA.checkpoint_path is not None
-            ):
-            diffusion_model_train_epoch = load_model(
+    model = build_model(config)
+    optimizer = build_optimizer(config, model)
+    
+    if (
+            hasattr(config.DATA, "checkpoint_path")
+            and config.DATA.checkpoint_path is not None
+        ):
+            load_model(
                     path=config.DATA.checkpoint_path,
                     model=model.grlEncoder.diffusionModel.model,
                     optimizer=None,
                     prefix="DiffusionModel_Pretrain",
-                )
-        else:
-                diffusion_model_train_epoch=0
-                
-        ### Prepare the model
-        (
-            model.grlEncoder.diffusionModel.model,
-            data_loader_train,
-            data_loader_val,
-            optimizer,
-        ) = accelerator.prepare(
-            model.grlEncoder.diffusionModel.model,
-            data_loader_train,
-            data_loader_val,
-            optimizer,
-        )
-        
-        ### Train the model
-        for epoch in range(config.TRAIN.iteration):
-            if diffusion_model_train_epoch >= epoch:
-                continue
+            )
             
-                
-            if (epoch + 1) % config.TEST.checkpoint_freq == 0:
-                if accelerator.is_local_main_process:
-                    save_model(
-                        config.DATA.checkpoint_path,
-                        model.grlEncoder.diffusionModel.model,
-                        optimizer,
-                        epoch,
-                        "DiffusionModel_Pretrain",
-                    )
-                accelerator.wait_for_everyone()
-                    
-            if hasattr (config.TEST,"analyse_freq") and (epoch+1) % config.TEST.analyse_freq == 0:
-                train_log=analysis_logp(accelerator, model, data_loader_train, epoch)
-                eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
-                
-                if accelerator.is_main_process:
-                    wandb.log(
-                    {"analyse/train_logp": train_log, "analyse/epoch": epoch,"eanalyse/eval_logp": eval_log},
-                    commit=False,
-                    )
-                
+    if config.TRAIN.loss_function == "CrossEntropy":
+        criterion = torch.nn.CrossEntropyLoss()
+    elif config.TRAIN.loss_function == "LabelSmoothingCrossEntropy":
+        criterion = LabelSmoothingCrossEntropy(smoothing=config.TRAIN.label_smoothing)
+    elif config.TRAIN.loss_function == "SoftTargetCrossEntropy":
+        criterion = SoftTargetCrossEntropy()
+    else:
+        raise NotImplementedError
+    (
+        model.grlEncoder.diffusionModel.model,
+        model.grlHead,
+        data_loader_train,
+        data_loader_train_analyse,
+        data_loader_val_analyse,
+        data_loader_val,
+        optimizer,
+    ) = accelerator.prepare(
+        model.grlEncoder.diffusionModel.model,
+        model.grlHead,
+        data_loader_train,
+        data_loader_train_analyse,
+        data_loader_val_analyse,
+        data_loader_val,
+        optimizer,
+    )
+    
+    lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
+    
+    for epoch in range(config.TRAIN.iteration):
+        acc_1=validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
+        train_logp=analysis_logp(accelerator, model, data_loader_train_analyse, epoch)
+        eval_logp=analysis_logp(accelerator, model, data_loader_val_analyse, epoch)
+        train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)    
         
-            if (epoch + 1) % config.TEST.generative_freq == 0:
-                generative_picture(accelerator, model,  epoch,config)
-                
-            if config.MODEL.model_type in ["ICFM","OT"]:
-                train_icfm_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
-            elif config.MDOEL.model_type=="Diff":
-                train_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
-            else:
-                raise NotImplementedError("Model type not implemented")
-            
-        
-    if config.TRAIN.method == "Finetune" or config.TRAIN.method == "Pretrain":
-        accelerator.print("Finetune")
-        data_loader_train, data_loader_val, mixup_fn = build_loader(config)
-        data_loader_train_analyse, data_loader_val_analyse, mixup_fn = build_loader(config,True)
-        model = build_model(config)
-        optimizer = build_optimizer(config, model)
-        
-        if (
-                hasattr(config.DATA, "checkpoint_path")
-                and config.DATA.checkpoint_path is not None
-            ):
-                load_model(
-                        path=config.DATA.checkpoint_path,
-                        model=model.grlEncoder.diffusionModel.model,
-                        optimizer=None,
-                        prefix="DiffusionModel_Pretrain",
-                )
-                
-        if config.TRAIN.loss_function == "CrossEntropy":
-            criterion = torch.nn.CrossEntropyLoss()
-        elif config.TRAIN.loss_function == "LabelSmoothingCrossEntropy":
-            criterion = LabelSmoothingCrossEntropy(smoothing=config.TRAIN.label_smoothing)
-        elif config.TRAIN.loss_function == "SoftTargetCrossEntropy":
-            criterion = SoftTargetCrossEntropy()
-        else:
-            raise NotImplementedError
-        (
-            model.grlEncoder.diffusionModel.model,
-            model.grlHead,
-            data_loader_train,
-            data_loader_train_analyse,
-            data_loader_val_analyse,
-            data_loader_val,
-            optimizer,
-        ) = accelerator.prepare(
-            model.grlEncoder.diffusionModel.model,
-            model.grlHead,
-            data_loader_train,
-            data_loader_train_analyse,
-            data_loader_val_analyse,
-            data_loader_val,
-            optimizer,
-        )
-        lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
-        for epoch in range(config.TRAIN.iteration):
-            acc_1=validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
-            train_logp=analysis_logp(accelerator, model, data_loader_train_analyse, epoch)
-            eval_logp=analysis_logp(accelerator, model, data_loader_val_analyse, epoch)
-            train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)    
-            if accelerator.is_main_process:
-                wandb.log(
-                {"analyse/train_logp": train_logp, "analyse/epoch": epoch,"analyse/eval_logp": eval_logp},
-                commit=False,
-                )
-            log_dict["acc1"].append(acc_1)
-            log_dict["train_logp"].append(train_logp)
-            log_dict["eval_logp"].append(eval_logp)
-            log_dict["epoch"].append(epoch)
+        if accelerator.is_main_process:
+            wandb.log(
+            {"analyse/train_logp": train_logp, "analyse/epoch": epoch,"analyse/eval_logp": eval_logp},
+            commit=False,
+            )
+        log_dict["acc1"].append(acc_1)
+        log_dict["train_logp"].append(train_logp)
+        log_dict["eval_logp"].append(eval_logp)
+        log_dict["epoch"].append(epoch)
 
-            if (epoch) % config.TEST.generative_freq == 0:
-                if accelerator.is_local_main_process:
-                    import pickle
-                    with open("/home/xrk/EXP/Cifar-10-icfm/log_dict.pkl", "wb") as f:
-                        pickle.dump(log_dict, f)
-                    accelerator.wait_for_everyone()
-                    
-            # if (epoch + 1) % config.TEST.checkpoint_freq == 0:
-            #     if accelerator.is_local_main_process:
-            #         save_model(
-            #             config.DATA.checkpoint_path,
-            #             model,
-            #             optimizer,
-            #             epoch,
-            #             "GenerativeClassify",
-            #         )
-            #     accelerator.wait_for_everyone()
-                    
-            if hasattr (config.TEST,"sms_freq") and (epoch) % config.TEST.sms_freq == 0:
-                if accelerator.is_local_main_process:
-                    message = f"Project : {config.PROJECT_NAME} Special : {config.extra}\n"
-                    message += f"epoch : {epoch + 1}\n"
-                    message += f"acc_1 : {acc_1}\n"
-                    import http.client, urllib
-                    conn = http.client.HTTPSConnection("api.pushover.net:443")
-                    conn.request("POST", "/1/messages.json",
-                    urllib.parse.urlencode({
-                        "token": "a7rgfcc4v14rfpkv3j8i5mnsvuiwsv",  
-                        "user": "ufam55v8r8425rc79e45aeo2thb1xc",    
-                        "message": message, 
-                    }), { "Content-type": "application/x-www-form-urlencoded" })
-                    conn.getresponse()
+        if (epoch) % config.TEST.generative_freq == 0:
+            if accelerator.is_local_main_process:
+                import pickle
+                with open("/home/xrk/EXP/Cifar-10-icfm/log_dict.pkl", "wb") as f:
+                    pickle.dump(log_dict, f)
                 accelerator.wait_for_everyone()
+                
+                
+        if hasattr (config.TEST,"sms_freq") and (epoch) % config.TEST.sms_freq == 0:
+            if accelerator.is_local_main_process:
+                message = f"Project : {config.PROJECT_NAME} Special : {config.extra}\n"
+                message += f"epoch : {epoch + 1}\n"
+                message += f"acc_1 : {acc_1}\n"
+                import http.client, urllib
+                conn = http.client.HTTPSConnection("api.pushover.net:443")
+                conn.request("POST", "/1/messages.json",
+                urllib.parse.urlencode({
+                    "token": "a7rgfcc4v14rfpkv3j8i5mnsvuiwsv",  
+                    "user": "ufam55v8r8425rc79e45aeo2thb1xc",    
+                    "message": message, 
+                }), { "Content-type": "application/x-www-form-urlencoded" })
+                conn.getresponse()
+            accelerator.wait_for_everyone()
