@@ -99,58 +99,6 @@ def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
             )
     return 0
 
-def train_recitified_flow_matching(accelerator, model, data_loader, optimizer, epoch):
-    model.train()
-    for x0, x1 in track(
-        data_loader, disable=not accelerator.is_local_main_process
-    ):
-        loss = model.matchingLoss(x0=x0,x1=x1)
-        optimizer.zero_grad()
-        accelerator.backward(loss)
-        optimizer.step()
-        if accelerator.is_main_process:
-            wandb.log(
-                {"train/loss": loss, "train/epoch": epoch},
-                commit=True,
-            )
-    return 0
-
-@torch.no_grad()
-def analysis_logp(accelerator, model, data_loader, config):
-    model.eval()
-    from grl.generative_models.metric import compute_likelihood,compute_straightness
-    count = 0
-    for samples, targets in track(
-        data_loader, disable=not accelerator.is_local_main_process
-    ):
-        logp=compute_likelihood(
-                model=model.grlEncoder.diffusionModel,
-                x=samples,
-                t=torch.linspace(0.0, 1.0, 100).to(samples.device),
-                using_Hutchinson_trace_estimator=True,
-            )
-        logp=accelerator.gather_for_metrics(logp)
-        logp_mean=logp.mean()
-        break
-    #todo: need to check the normalization
-    ipdb.set_trace()
-    mean_norm = logp_mean/(samples.shape[2]*samples.shape[3])
-    return mean_norm
-
-@torch.no_grad()
-def analysis_straightness(accelerator, model,config):
-    model.eval()
-    from grl.generative_models.metric import compute_straightness
-    straightness=compute_straightness(model=model.grlEncoder.diffusionModel,batch_size=config.DATA.batch_size)
-    straightness_gather=accelerator.gather_for_metrics(straightness)
-    mean_straightness = straightness_gather.mean()
-    if accelerator.is_main_process:
-        wandb.log(
-            {"eval/straightness": mean_straightness},
-            commit=False,
-        )
-    return mean_straightness
-
 @torch.no_grad()
 def generative_picture(accelerator, model, epoch,config):
     model.eval()
@@ -168,6 +116,7 @@ def generative_picture(accelerator, model, epoch,config):
         )
     accelerator.wait_for_everyone()
 
+@torch.no_grad()
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
@@ -192,6 +141,7 @@ class AverageMeter(object):
         fmtstr = "{name} {val" + self.fmt + "} ({avg" + self.fmt + "})"
         return fmtstr.format(**self.__dict__)
 
+@torch.no_grad()
 def accuracy(output, target, topk=(1,)):
     """Computes the accuracy over the k top predictions for the specified values of k"""
     with torch.no_grad():
@@ -208,25 +158,22 @@ def accuracy(output, target, topk=(1,)):
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
 
-
+@torch.no_grad()
 def validate(accelerator, model, val_loader, criterion, epoch,mixup_fn=None):
     losses = AverageMeter("Loss", ":.4e")
     top1 = AverageMeter("Acc@1", ":6.2f")
     top5 = AverageMeter("Acc@5", ":6.2f")
-    # switch to evaluate mode
+
     model.eval()
     with torch.no_grad():
         for idx, (images, targets) in enumerate(val_loader):
-            # compute output
             if mixup_fn is not None:
                 images, targets_mixup=mixup_fn(images, targets)
             else :
                 targets_mixup=targets
-            outputs = model(images)
+            outputs = model(images,False)
             loss = criterion(outputs, targets_mixup)
-            
             outputs, targets = accelerator.gather_for_metrics((outputs, targets))
-            # measure accuracy and record loss
             acc1, acc5 = accuracy(outputs, targets, topk=(1, 5))
             losses.update(loss.item(), outputs.size(0))
             top1.update(acc1[0], outputs.size(0))
@@ -308,17 +255,6 @@ def train(config, accelerator):
                     )
                 accelerator.wait_for_everyone()
                     
-            if hasattr (config.TEST,"analyse_freq") and (epoch+1) % config.TEST.analyse_freq == 0:
-                train_log=analysis_logp(accelerator, model, data_loader_train, epoch)
-                eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
-                
-                if accelerator.is_main_process:
-                    wandb.log(
-                    {"analyse/train_logp": train_log, "analyse/epoch": epoch,"eanalyse/eval_logp": eval_log},
-                    commit=False,
-                    )
-                
-        
             if (epoch + 1) % config.TEST.generative_freq == 0:
                 generative_picture(accelerator, model,  epoch,config)
                 
@@ -371,21 +307,9 @@ def train(config, accelerator):
         lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
         for epoch in range(config.TRAIN.iteration):
             if (epoch) % config.TEST.eval_freq == 0:
-                acc_1=validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
+                validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
             train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
-            
-            if hasattr (config.TEST,"analyse_freq") and (epoch+1) % config.TEST.analyse_freq == 0:
-                train_log=analysis_logp(accelerator, model, data_loader_train, epoch)
-                # eval_log=analysis_logp(accelerator, model, data_loader_val, epoch)
-                # analysis_straightness(accelerator, model,config)
-                
-                if accelerator.is_main_process:
-                    wandb.log(
-                    {"analyse/train_logp": train_log, "analyse/epoch": epoch},
-                    commit=False,
-                    )
-                
-                    
+        
             if (epoch + 1) % config.TEST.checkpoint_freq == 0:
                 if accelerator.is_local_main_process:
                     save_model(
@@ -397,18 +321,3 @@ def train(config, accelerator):
                     )
                 accelerator.wait_for_everyone()
                     
-            if hasattr (config.TEST,"sms_freq") and (epoch) % config.TEST.sms_freq == 0:
-                if accelerator.is_local_main_process:
-                    message = f"Project : {config.PROJECT_NAME} Special : {config.extra}\n"
-                    message += f"epoch : {epoch + 1}\n"
-                    message += f"acc_1 : {acc_1}\n"
-                    import http.client, urllib
-                    conn = http.client.HTTPSConnection("api.pushover.net:443")
-                    conn.request("POST", "/1/messages.json",
-                    urllib.parse.urlencode({
-                        "token": "a7rgfcc4v14rfpkv3j8i5mnsvuiwsv",  
-                        "user": "ufam55v8r8425rc79e45aeo2thb1xc",    
-                        "message": message, 
-                    }), { "Content-type": "application/x-www-form-urlencoded" })
-                    conn.getresponse()
-                accelerator.wait_for_everyone()
