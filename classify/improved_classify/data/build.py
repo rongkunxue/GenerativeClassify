@@ -39,6 +39,7 @@ def build_loader(config,if_analyse=False):
         shuffle=True if if_analyse else False,
         num_workers=8,
         pin_memory=True,
+        persistent_workers=True
     )
 
     data_loader_val = torch.utils.data.DataLoader(
@@ -47,6 +48,7 @@ def build_loader(config,if_analyse=False):
         shuffle=False ,
         num_workers=8,
         pin_memory=True,
+        persistent_workers=True
     )
     # if hasattr(config.DATA, "MIXUP"):
     #     mixup_fn = Mixup(
