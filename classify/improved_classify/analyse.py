@@ -44,6 +44,7 @@ def load_model(path: str, model: torch.nn.Module, optimizer: torch.optim.Optimiz
         [f for f in os.listdir(path) if f.endswith(".pt") and f.startswith(prefix)],
         key=lambda x: int(x.split("_")[-1].split(".")[0]),
     )
+    # checkpoint_files = [f for f in checkpoint_files if f.startswith(prefix)]
 
     # Filter for every nth checkpoint file
     nth_index = min(len(checkpoint_files), nth) - 1
@@ -106,91 +107,88 @@ def picture_analysis(config, accelerator):
         config: Configuration for the training process.
         accelerator: Accelerator for distributed training.
     """
-    if config.TRAIN.method == "Pretrain":
+    if accelerator.is_main_process:
+        wandb_mode = "online" if accelerator.state.num_processes > 1 else "offline"
+        wandb.init(
+            project=config.PROJECT_NAME,
+            config=config,
+            mode=wandb_mode  
+        )
+        if hasattr(config, "extra"):
+            wandb.run.name=config.extra
+            wandb.run.save()
+    accelerator.wait_for_everyone()
+    
+    if config.TRAIN.method == "analyse":
         data_loader_train, data_loader_val, mixup_fn = build_loader(config, if_analyse=True)
         real_model = build_model(config)
 
         # Iterate over checkpoints (nth)
-        for i in range(0, 20):
+        for i in range(1, 300):
             import copy
             model = copy.deepcopy(real_model)
-            optimizer = build_optimizer(config, model)
 
             # Load the diffusion model from checkpoint
             diffusion_model_train_epoch = load_model(
                 path=config.DATA.checkpoint_path,
-                model=model.grlEncoder.diffusionModel.model,
+                model=model,
                 optimizer=None,
-                prefix="DiffusionModel_Pretrain",
+                prefix="GenerativeClassify",
                 nth=i,
             )
 
             # Prepare the model and data loaders with accelerator
-            model.grlEncoder.diffusionModel.model, data_loader_train, data_loader_val, optimizer = accelerator.prepare(
-                model.grlEncoder.diffusionModel.model, data_loader_train, data_loader_val, optimizer
+            model.grlEncoder.diffusionModel.model, data_loader_train, data_loader_val = accelerator.prepare(
+                model.grlEncoder.diffusionModel.model, data_loader_train, data_loader_val
             )
-
-            j_train_mean = []
-            j_val_mean = []
+            
+            logp_train_list = []
+            logp_val_list = []
+            count = 0
             model.eval()
             # Perform log likelihood calculation for two iterations
-            for j in range(2):
-                logp_train_list = []
-                logp_val_list = []
+           
+            for samples, targets in track(data_loader_train, disable=not accelerator.is_local_main_process):
+                with torch.no_grad():
+                    log_p = compute_likelihood(
+                        model=model.grlEncoder.diffusionModel,
+                        x=samples,
+                        t=torch.linspace(0.0, 1.0, 100).to(samples.device),
+                        using_Hutchinson_trace_estimator=True,
+                    
+                    )
+                    log_p=accelerator.gather_for_metrics(log_p)
+                    logp_train_list.append(log_p)
+                    count += 1
+                    if count > 10:
+                        break
 
-                # Train set likelihood
-                count = 0
-                for samples, targets in track(data_loader_train, disable=not accelerator.is_local_main_process):
-                    with torch.no_grad():
-                        log_p = compute_likelihood(
-                            model=model.grlEncoder.diffusionModel,
-                            x=samples,
-                            t=torch.linspace(0.0, 1.0, 100).to(samples.device),
-                            using_Hutchinson_trace_estimator=True,
-                        
-                        )
-                        logp_train_list.append(log_p)
-                        count += 1
-                        if count > 40:
-                            break
-
-                # Validation set likelihood
-                count = 0
-                for samples, targets in track(data_loader_val, disable=not accelerator.is_local_main_process):
-                    with torch.no_grad():
-                        log_p = compute_likelihood(
-                            model=model.grlEncoder.diffusionModel,
-                            x=samples,
-                            t=torch.linspace(0.0, 1.0, 100).to(samples.device),
-                            using_Hutchinson_trace_estimator=True,
-                        )
-                        logp_val_list.append(log_p)
-                        count += 1
-                        if count > 40:
-                            break
+            count = 0
+            for samples, targets in track(data_loader_val, disable=not accelerator.is_local_main_process):
+                with torch.no_grad():
+                    log_p = compute_likelihood(
+                        model=model.grlEncoder.diffusionModel,
+                        x=samples,
+                        t=torch.linspace(0.0, 1.0, 100).to(samples.device),
+                        using_Hutchinson_trace_estimator=True,
+                    )
+                    log_p=accelerator.gather_for_metrics(log_p)
+                    logp_val_list.append(log_p)
+                    count += 1
+                    if count > 10:
+                        break
 
                 # Calculate mean likelihoods
                 logp_train_mean =  torch.stack(logp_train_list).mean().item()/(32.0*32.0)
                 logp_val_mean = torch.stack(logp_val_list).mean().item()/(32.0*32.0)
 
-                j_train_mean.append(logp_train_mean)
-                j_val_mean.append(logp_val_mean)
-
-            # Calculate train and validation statistics
-            train_mean = np.array(j_train_mean).mean()
-            train_std = np.array(j_train_mean).std()
-            val_mean = np.array(j_val_mean).mean()
-            val_std = np.array(j_val_mean).std()
-
-            # Log the results to wandb
-            wandb.log({
-                "train_mean": train_mean,
-                "train_std": train_std,
-                "val_mean": val_mean,
-                "val_std": val_std,
-                "nth": i,
-                "diffusion_model_train_epoch": diffusion_model_train_epoch, 
-            })
+            if accelerator.is_main_process:
+                wandb.log({
+                    "train_mean": logp_train_mean,
+                    "val_mean": logp_val_mean,
+                    "nth": i-1,
+                    "diffusion_model_train_epoch": diffusion_model_train_epoch, 
+                })
             
 @torch.no_grad()
 # Main function to perform picture analysis
@@ -207,7 +205,7 @@ def strightness_analysis(config, accelerator):
         real_model = build_model(config)
 
         # Iterate over checkpoints (nth)
-        for i in range(0, 20):
+        for i in range(1, 300):
             import copy
             model = copy.deepcopy(real_model)
 
@@ -216,7 +214,7 @@ def strightness_analysis(config, accelerator):
                 path=config.DATA.checkpoint_path,
                 model=model.grlEncoder.diffusionModel.model,
                 optimizer=None,
-                prefix="DiffusionModel_Pretrain",
+                prefix="GenerativeClassify",
                 nth=i,
             )
 
