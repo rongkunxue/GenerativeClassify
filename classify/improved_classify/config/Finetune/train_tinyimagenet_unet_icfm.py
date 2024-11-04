@@ -9,18 +9,19 @@ def make_config(device):
     type=f"GenerativeClassifyUNet_{model_type}"
     classes = 200
     image_size = 64
-    project_name = f"A_{model_type}_{method}_Tinyimagnet"
+    project_name = f"S_{model_type}_{method}_Tinyimagnet"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
+            extra="icfm-tiny-15cut",
             DEVICE=device,
             DATA=dict(
-                batch_size=180,
+                batch_size=128,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="/root/data/tiny-imagenet-200",
-                checkpoint_path=f"./{project_name}/checkpoint",
-                video_save_path=f"./{project_name}/video",
+                dataset_path="/root/tiny-imagenet-200",
+                checkpoint_path=f"/root/Model/Tinyimagent_unet",
+                video_save_path=f"/root/Model/Tinyimagent_unet",
                 dataset="Tinyimagenet",
                 AUG=dict(
                     interpolation="bicubic",
@@ -35,7 +36,7 @@ def make_config(device):
                 method=method,
                 type=type,
                 t_span=20,
-                t_cutoff=17,
+                t_cutoff=15,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
