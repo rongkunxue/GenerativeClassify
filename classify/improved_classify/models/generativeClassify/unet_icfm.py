@@ -87,10 +87,12 @@ class classifyHead(nn.Module):
 class generativeEncoder(nn.Module):
     def __init__(self, config):
         super(generativeEncoder, self).__init__()
-        if config.image_size == 64:
-            register_module(Unet_64, "GenerativeClassifyUNet_ICFM")
+        if config.image_size == 64 and config.classes == 200:
+            register_module(Unet_32, "GenerativeClassifyUNet_ICFM")
         elif config.image_size == 32:
             register_module(Unet_32, "GenerativeClassifyUNet_ICFM")
+        elif config.image_size == 64 and config.classes ==1000:
+            register_module(Unet_64, "GenerativeClassifyUNet_ICFM")
         self.diffusionModel = IndependentConditionalFlowModel(config.diffusion_model)
         self.config = config
 
