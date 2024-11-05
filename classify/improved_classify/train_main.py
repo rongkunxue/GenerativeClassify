@@ -26,22 +26,6 @@ from rich.progress import track
 import torchvision
 
 
-def imagenet_save(img, save_path="./", iteration=0, prefix="img"):
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
-    import torchvision.transforms as transforms
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
-    inv_normalize = transforms.Normalize(
-        mean=[-m/s for m, s in zip(mean, std)],
-        std=[1/s for s in std]
-    )
-    img = inv_normalize(img)
-    npimg = img.cpu().numpy()
-    plt.imshow(np.transpose(npimg, (1, 2, 0)))
-    plt.axis("off")
-    save_path = os.path.join(save_path, f"{prefix}_{iteration}.png")
-    plt.savefig(save_path)
 
 def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_scheduler, epoch):
     model.train()
@@ -99,22 +83,6 @@ def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
             )
     return 0
 
-@torch.no_grad()
-def generative_picture(accelerator, model, epoch,config):
-    model.eval()
-    img=model.samplePicture()
-    img=accelerator.gather_for_metrics(img)
-    img = torchvision.utils.make_grid(
-            img, value_range=(-1, 1), padding=0, nrow=4
-        )
-    if accelerator.is_local_main_process:
-        imagenet_save(
-            img.cpu().detach(),
-            config.DATA.video_save_path,
-            epoch,
-            f"Image",
-        )
-    accelerator.wait_for_everyone()
 
 @torch.no_grad()
 class AverageMeter(object):
