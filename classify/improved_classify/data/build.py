@@ -36,7 +36,7 @@ def build_loader(config,if_analyse=False):
     data_loader_train = torch.utils.data.DataLoader(
         dataset_train,
         batch_size=config.DATA.batch_size,
-        shuffle=True if if_analyse else False,
+        shuffle=False if if_analyse else True,
         num_workers=8,
         pin_memory=True,
         persistent_workers=True
@@ -114,7 +114,7 @@ def build_dataset(is_train, config,if_analyse):
 
 
 def build_transform(is_train, config):
-    if config.TRAIN.method in ["Finetune","Recitified"]:
+    if config.TRAIN.method in ["Finetune"]:
         resize_im = config.DATA.img_size > 32
         if is_train:
             # this should always dispatch to transforms_imagenet_train
@@ -153,7 +153,7 @@ def build_transform(is_train, config):
         t.append(transforms.Normalize(IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD))
         return transforms.Compose(t)
     
-    elif config.TRAIN.method in ["Pretrain","Recitified_Collect"]:
+    elif config.TRAIN.method in ["Pretrain"]:
         resize_im = config.DATA.img_size > 32
         transform = create_transform(
                 input_size=config.DATA.img_size,
