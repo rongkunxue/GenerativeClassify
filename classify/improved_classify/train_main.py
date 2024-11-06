@@ -35,7 +35,7 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         data_loader, disable=not accelerator.is_local_main_process,
         description=f"Processing Train epoch {epoch}",
     ):
-        outputs = model(samples)
+        outputs = model(samples,False)
         loss = criterion(outputs, targets)
         optimizer.zero_grad()
         accelerator.backward(loss)
