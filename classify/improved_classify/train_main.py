@@ -53,7 +53,7 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
 def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
     model.train()
     for samples, targets in track(
-        data_loader, disable=not accelerator.is_local_main_process
+        data_loader
     ):
         loss = model.matchingLoss(samples)
         optimizer.zero_grad()
@@ -76,11 +76,11 @@ def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
-        if accelerator.is_main_process:
-            wandb.log(
-                {"train/loss": loss, "train/epoch": epoch},
-                commit=True,
-            )
+        
+        wandb.log(
+            {"train/loss": loss, "train/epoch": epoch},
+            commit=True,
+        )
     return 0
 
 
@@ -146,16 +146,16 @@ def validate(accelerator, model, val_loader, criterion, epoch,mixup_fn=None):
             losses.update(loss.item(), outputs.size(0))
             top1.update(acc1[0], outputs.size(0))
             top5.update(acc5[0], outputs.size(0))
-        if accelerator.is_main_process:
-            wandb.log(
-                {
-                    f"eval/acc1": top1.avg,
-                    f"eval/acc5": top5.avg,
-                    f"eval/loss": losses.avg,
-                    f"eval/epoch": epoch,
-                },
-                commit=False,
-            )
+       
+        wandb.log(
+            {
+                f"eval/acc1": top1.avg,
+                f"eval/acc5": top5.avg,
+                f"eval/loss": losses.avg,
+                f"eval/epoch": epoch,
+            },
+            commit=False,
+        )
     return top1.avg
 
 
