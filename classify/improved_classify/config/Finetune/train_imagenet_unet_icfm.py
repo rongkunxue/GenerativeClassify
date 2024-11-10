@@ -97,7 +97,7 @@ def make_config(device):
             TEST=dict(
                 seed=0,
                 crop=True,
-                eval_freq=5,
+                eval_freq=10,
                 generative_freq=100,
                 checkpoint_freq=5,
             ),

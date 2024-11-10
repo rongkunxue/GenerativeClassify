@@ -274,7 +274,7 @@ def train(config, accelerator):
         )
         lr_scheduler= build_scheduler(config, optimizer,len(data_loader_train))
         for epoch in range(config.TRAIN.iteration):
-            if (epoch) % config.TEST.eval_freq == 0:
+            if (epoch+1) % config.TEST.eval_freq == 0:
                 validate(accelerator, model, data_loader_val, criterion, epoch,mixup_fn)
             train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
         
