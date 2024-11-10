@@ -277,13 +277,12 @@ def train(config, accelerator):
             train_epoch(accelerator, model, criterion, data_loader_train, optimizer, lr_scheduler,epoch)
         
             if (epoch + 1) % config.TEST.checkpoint_freq == 0:
-                if accelerator.is_local_main_process:
-                    save_model(
-                        config.DATA.checkpoint_path,
-                        model,
-                        optimizer,
-                        epoch,
-                        "GenerativeClassify",
-                    )
+                save_model(
+                    config.DATA.checkpoint_path,
+                    model,
+                    optimizer,
+                    epoch,
+                    "GenerativeClassify",
+                )
                 # accelerator.wait_for_everyone()
                     
