@@ -20,8 +20,8 @@ def make_config(device):
                 classes=classes,
                 img_size=image_size,
                 dataset_path="/mnt/afs/zhangjinouwen/Dataset/imagenet",
-                checkpoint_path=f"/Model/ImageNet",
-                video_save_path=f"/Model/ImageNet",
+                checkpoint_path=f"/root/Model/ImageNet",
+                video_save_path=f"/root/Model/ImageNet",
                 dataset="Imagenet",
                 AUG=dict(
                     interpolation="bicubic",
