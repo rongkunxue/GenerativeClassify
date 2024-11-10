@@ -160,17 +160,17 @@ def validate(accelerator, model, val_loader, criterion, epoch,mixup_fn=None):
 
 
 def train(config, accelerator):
-    if accelerator.is_main_process:
-        wandb_mode = "online" if accelerator.state.num_processes > 1 else "offline"
-        wandb.init(
-            project=config.PROJECT_NAME,
-            config=config,
-            mode=wandb_mode  
-        )
-        if hasattr(config, "extra"):
-            wandb.run.name=config.extra
-            wandb.run.save()
-    accelerator.wait_for_everyone()
+    # if accelerator.is_main_process:
+    wandb_mode = "online" if accelerator.state.num_processes > 1 else "offline"
+    wandb.init(
+        project=config.PROJECT_NAME,
+        config=config,
+        mode=wandb_mode  
+    )
+    if hasattr(config, "extra"):
+        wandb.run.name=config.extra
+        wandb.run.save()
+    # accelerator.wait_for_everyone()
     
     if config.TRAIN.method == "Pretrain":
         accelerator.print("Pretrain")
@@ -287,5 +287,5 @@ def train(config, accelerator):
                         epoch,
                         "GenerativeClassify",
                     )
-                accelerator.wait_for_everyone()
+                # accelerator.wait_for_everyone()
                     
