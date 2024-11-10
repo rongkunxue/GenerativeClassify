@@ -32,7 +32,7 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
     num_steps=len(data_loader)
     idx=0
     for samples, targets in track(
-        data_loader, disable=not accelerator.is_local_main_process,
+        data_loader,
         description=f"Processing Train epoch {epoch}",
     ):
         outputs = model(samples)
@@ -43,11 +43,10 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         lr_scheduler.step_update(epoch * num_steps + idx)
         idx+=1
         # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
-        if accelerator.is_main_process:
-            wandb.log(
-                {"train/loss": loss, "train/epoch": epoch},
-                commit=True,
-            )
+        wandb.log(
+            {"train/loss": loss, "train/epoch": epoch},
+            commit=True,
+        )
     return 0
 
 def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
@@ -59,17 +58,16 @@ def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
         optimizer.zero_grad()
         accelerator.backward(loss)
         optimizer.step()
-        if accelerator.is_main_process:
-            wandb.log(
-                {"train/loss": loss, "train/epoch": epoch},
-                commit=True,
-            )
+        wandb.log(
+            {"train/loss": loss, "train/epoch": epoch},
+            commit=True,
+        )
     return 0
 
 def train_icfm_flow_matching(accelerator, model, data_loader, optimizer, epoch):
     model.train()
     for samples, targets in track(
-        data_loader, disable=not accelerator.is_local_main_process
+        data_loader
     ):
         x0 = model.grlEncoder.diffusionModel.gaussian_generator(samples.shape[0]).to(samples.device)
         loss = model.matchingLoss(x0=x0,x1=samples)
