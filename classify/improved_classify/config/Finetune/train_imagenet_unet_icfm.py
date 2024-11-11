@@ -16,7 +16,7 @@ def make_config(device):
             extra="icfm-10-cut",
             DEVICE=device,
             DATA=dict(
-                batch_size=128,
+                batch_size=64,
                 classes=classes,
                 img_size=image_size,
                 dataset_path="/mnt/afs/zhangjinouwen/Dataset/imagenet",
@@ -97,7 +97,7 @@ def make_config(device):
             TEST=dict(
                 seed=0,
                 crop=True,
-                eval_freq=10,
+                eval_freq=5,
                 generative_freq=100,
                 checkpoint_freq=5,
             ),
@@ -109,7 +109,7 @@ def make_config(device):
 if __name__ == "__main__":
     accelerator = Accelerator()
     config = make_config(accelerator.device)
-    num_processes = accelerator.num_processes
+    num_processes = 8
     config.TRAIN.lr=config.TRAIN.lr*num_processes*config.DATA.batch_size/512
     config.TRAIN.warmup_lr=config.TRAIN.warmup_lr*num_processes*config.DATA.batch_size/512
     config.TRAIN.min_lr=config.TRAIN.min_lr*num_processes*config.DATA.batch_size/512
