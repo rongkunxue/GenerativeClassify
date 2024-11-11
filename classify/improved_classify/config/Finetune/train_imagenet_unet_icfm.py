@@ -9,7 +9,7 @@ def make_config(device):
     type=f"GenerativeClassifyUNet_{model_type}"
     classes = 1000
     image_size = 64
-    project_name = f"z_{model_type}_{method}_Imagnet"
+    project_name = f"sensetime_{model_type}_{method}_Imagnet"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -35,8 +35,8 @@ def make_config(device):
             MODEL=dict(
                 method=method,
                 type=type,
-                t_span=32,
-                t_cutoff=20,
+                t_span=20,
+                t_cutoff=10,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
