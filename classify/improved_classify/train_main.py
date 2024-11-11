@@ -34,6 +34,7 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
     for samples, targets in track(
         data_loader,
         description=f"Processing Train epoch {epoch}",
+        disable=not accelerator.is_main_process,
     ):
         outputs = model(samples)
         loss = criterion(outputs, targets)
@@ -43,10 +44,11 @@ def train_epoch(accelerator, model, criterion, data_loader, optimizer,lr_schedul
         lr_scheduler.step_update(epoch * num_steps + idx)
         idx+=1
         # max_param_val, max_grad_val, min_grad_val = find_max_param_and_grad(model)
-        wandb.log(
-            {"train/loss": loss, "train/epoch": epoch},
-            commit=True,
-        )
+        if accelerator.is_main_process:
+            wandb.log(
+                {"train/loss": loss, "train/epoch": epoch},
+                commit=True,
+            )
     return 0
 
 def train_flow_matching(accelerator, model, data_loader, optimizer, epoch):
@@ -145,30 +147,31 @@ def validate(accelerator, model, val_loader, criterion, epoch,mixup_fn=None):
             top1.update(acc1[0], outputs.size(0))
             top5.update(acc5[0], outputs.size(0))
        
-        wandb.log(
-            {
-                f"eval/acc1": top1.avg,
-                f"eval/acc5": top5.avg,
-                f"eval/loss": losses.avg,
-                f"eval/epoch": epoch,
-            },
-            commit=False,
-        )
+        if accelerator.is_main_process:
+            wandb.log(
+                {
+                    f"eval/acc1": top1.avg,
+                    f"eval/acc5": top5.avg,
+                    f"eval/loss": losses.avg,
+                    f"eval/epoch": epoch,
+                },
+                commit=False,
+            )
     return top1.avg
 
 
 def train(config, accelerator):
-    # if accelerator.is_main_process:
-    wandb_mode = "online" if accelerator.state.num_processes > 1 else "offline"
-    wandb.init(
-        project=config.PROJECT_NAME,
-        config=config,
-        mode=wandb_mode  
-    )
-    if hasattr(config, "extra"):
-        wandb.run.name=config.extra
-        wandb.run.save()
-    # accelerator.wait_for_everyone()
+    if accelerator.is_main_process:
+        wandb_mode = "online" if accelerator.state.num_processes > 1 else "offline"
+        wandb.init(
+            project=config.PROJECT_NAME,
+            config=config,
+            mode=wandb_mode  
+        )
+        if hasattr(config, "extra"):
+            wandb.run.name=config.extra
+            wandb.run.save()
+    accelerator.wait_for_everyone()
     
     if config.TRAIN.method == "Pretrain":
         accelerator.print("Pretrain")
@@ -284,5 +287,5 @@ def train(config, accelerator):
                     epoch,
                     "GenerativeClassify",
                 )
-                # accelerator.wait_for_everyone()
+                accelerator.wait_for_everyone()
                     

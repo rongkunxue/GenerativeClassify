@@ -67,6 +67,26 @@ class classifyHead(nn.Module):
     def __init__(self, config):
         super(classifyHead, self).__init__()
         self.mypool=nn.Sequential(
+            nn.AdaptiveAvgPool2d((16, 16)) ,
+            nn.Flatten(),
+        )
+        self.classifier=nn.Sequential(
+            nn.LayerNorm(768),
+            nn.Linear(768, 768),
+            nn.Tanh(),
+            nn.Linear(768,  config.classes, bias=False),
+        )
+        self.config = config
+
+    def forward(self, x):
+        x = self.mypool(x)
+        x = self.classifier(x)
+        return x
+
+class classifyHeadImagenet(nn.Module):
+    def __init__(self, config):
+        super(classifyHead, self).__init__()
+        self.mypool=nn.Sequential(
             nn.AdaptiveAvgPool2d((32, 32)) ,
             nn.Flatten(),
         )
@@ -82,7 +102,6 @@ class classifyHead(nn.Module):
         x = self.mypool(x)
         x = self.classifier(x)
         return x
-
 
 class generativeEncoder(nn.Module):
     def __init__(self, config):
