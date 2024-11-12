@@ -35,8 +35,7 @@ def make_config(device):
             MODEL=dict(
                 method=method,
                 type=type,
-                t_span=20,
-                t_cutoff=10,
+                t_span=32,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
