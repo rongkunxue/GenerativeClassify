@@ -15,7 +15,7 @@ def make_config(device):
             PROJECT_NAME=project_name,
             DEVICE=device,
             DATA=dict(
-                batch_size=180,
+                batch_size=128,
                 classes=classes,
                 img_size=image_size,
                 dataset_path="~/exp",
@@ -34,7 +34,7 @@ def make_config(device):
             MODEL=dict(
                 method=method,
                 type=type,
-                t_span=20,
+                t_span=32,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
@@ -64,7 +64,7 @@ def make_config(device):
             ),
             TRAIN=dict(
                 method=method,
-                loss_function="LabelSmoothingCrossEntropy", #LabelSmoothingCrossEntropy or SoftTargetCrossEntropy
+                loss_function="LabelSmoothingCrossEntropy",
                 label_smoothing=0.1,
                 training_loss_type="flow_matching",
                 optimizer_type="adam",
@@ -76,8 +76,8 @@ def make_config(device):
                 seed=0,
                 crop=True,
                 eval_freq=100,
-                generative_freq=100,
-                checkpoint_freq=100,
+                generative_freq=500,
+                checkpoint_freq=500,
             ),
         )
     )

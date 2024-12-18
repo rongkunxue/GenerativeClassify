@@ -224,9 +224,6 @@ def train(config, accelerator):
                     )
                 accelerator.wait_for_everyone()
                     
-            if (epoch + 1) % config.TEST.generative_freq == 0:
-                generative_picture(accelerator, model,  epoch,config)
-                
             if config.MODEL.model_type in ["ICFM","OT"]:
                 train_icfm_flow_matching(accelerator, model, data_loader_train, optimizer, epoch)
             elif config.MDOEL.model_type=="Diff":

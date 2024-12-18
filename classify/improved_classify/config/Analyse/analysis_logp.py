@@ -1,27 +1,26 @@
-import wandb
+import os
 from easydict import EasyDict
 from accelerate import Accelerator
-from train_main import train
+from analyse_logp import picture_analysis
 
 def make_config(device):
-    model_type="Diff"
     method="Pretrain"
-    type=f"GenerativeClassifyDiT_{model_type}"
-    classes = 200
+    type="GenerativeClassifyDiT"
+    classes = 1000
     image_size = 64
-    project_name = f"B_{model_type}_{method}_Tinyimagenet"
+    project_name = "Classify_imagent_dit_finetune"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
             DEVICE=device,
             DATA=dict(
-                batch_size=128,
+                batch_size=16,
                 classes=classes,
                 img_size=image_size,
-                dataset_path="~/exp",
-                checkpoint_path=f"~/exp",
-                video_save_path=f"~/exp",
-                dataset="Tinyimagenet",
+                dataset_path="/root/data/imagenet_1k",
+                checkpoint_path=f"./{project_name}/checkpoint",
+                video_save_path=f"./{project_name}/video",
+                dataset="Imagenet",
                 AUG=dict(
                     interpolation="bicubic",
                     color_jitter=0.4,
@@ -37,7 +36,6 @@ def make_config(device):
                 t_span=20,
                 image_size=image_size,
                 classes=classes,
-                model_type=model_type,
                 diffusion_model=dict(
                     device=device,
                     x_size=(3, image_size, image_size),
@@ -75,9 +73,9 @@ def make_config(device):
             TEST=dict(
                 seed=0,
                 crop=True,
-                eval_freq=100,
-                generative_freq=100,
-                checkpoint_freq=100,
+                eval_freq=5,
+                generative_freq=10,
+                checkpoint_freq=10,
             ),
         )
     )
@@ -87,4 +85,10 @@ def make_config(device):
 if __name__ == "__main__":
     accelerator = Accelerator()
     config = make_config(accelerator.device)
-    train(config, accelerator)
+    import wandb
+
+    wandb.init(
+        project=config.PROJECT_NAME,
+        config=config,
+    )
+    picture_analysis(config, accelerator)

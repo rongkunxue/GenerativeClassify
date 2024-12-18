@@ -25,10 +25,6 @@ from grl.utils.model_utils import save_model, load_model
 from rich.progress import track
 import torchvision
 
-
-
-
-
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
@@ -82,7 +78,6 @@ def validate(accelerator,model, val_loader):
         top1.update(acc1[0], outputs.size(0))
         top5.update(acc5[0], outputs.size(0))
     return top1.avg
-
 
 def train(config, accelerator):
     if accelerator.is_main_process:

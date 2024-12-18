@@ -1,7 +1,7 @@
 import wandb
 from easydict import EasyDict
 from accelerate import Accelerator
-from train_main import train
+from GenerativeClassify.classify.improved_classify.train import train
 
 def make_config(device):
     model_type="ICFM"
@@ -34,7 +34,7 @@ def make_config(device):
             MODEL=dict(
                 method=method,
                 type=type,
-                t_span=20,
+                t_span=100,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
@@ -64,8 +64,6 @@ def make_config(device):
             ),
             TRAIN=dict(
                 method=method,
-                loss_function="LabelSmoothingCrossEntropy", #LabelSmoothingCrossEntropy or SoftTargetCrossEntropy
-                label_smoothing=0.1,
                 training_loss_type="flow_matching",
                 optimizer_type="adam",
                 lr=1e-4,

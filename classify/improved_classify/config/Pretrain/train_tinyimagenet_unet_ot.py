@@ -1,15 +1,15 @@
 import wandb
 from easydict import EasyDict
 from accelerate import Accelerator
-from train_main import train
+from GenerativeClassify.classify.improved_classify.train import train
 
 def make_config(device):
-    model_type="ICFM"
+    model_type="OT"
     method="Pretrain"
-    type=f"GenerativeClassifyDiT_{model_type}"
+    type=f"GenerativeClassifyUNet_{model_type}"
     classes = 200
     image_size = 64
-    project_name = f"B_{model_type}_{method}_Tinyimagenet"
+    project_name = f"A_{model_type}_{method}_Tinyimagenet"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -34,7 +34,7 @@ def make_config(device):
             MODEL=dict(
                 method=method,
                 type=type,
-                t_span=20,
+                t_span=32,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
@@ -64,12 +64,10 @@ def make_config(device):
             ),
             TRAIN=dict(
                 method=method,
-                loss_function="LabelSmoothingCrossEntropy", #LabelSmoothingCrossEntropy or SoftTargetCrossEntropy
-                label_smoothing=0.1,
                 training_loss_type="flow_matching",
                 optimizer_type="adam",
                 lr=1e-4,
-                iteration=2000,
+                iteration=4000,
                 device=device,
             ),
             TEST=dict(

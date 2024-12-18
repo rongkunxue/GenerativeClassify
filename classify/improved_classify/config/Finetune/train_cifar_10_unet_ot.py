@@ -1,7 +1,7 @@
 import wandb
 from easydict import EasyDict
 from accelerate import Accelerator
-from train_main import train
+from GenerativeClassify.classify.improved_classify.train import train
 
 def make_config(device):
     model_type="OT"
@@ -9,13 +9,13 @@ def make_config(device):
     type=f"GenerativeClassifyUNet_{model_type}"
     classes = 10
     image_size = 32
-    project_name = f"A_{model_type}_{method}_CIFAR-10"
+    project_name = f"B_{model_type}_{method}_CIFAR-10"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
             DEVICE=device,
             DATA=dict(
-                batch_size=180,
+                batch_size=128,
                 classes=classes,
                 img_size=image_size,
                 dataset_path="~/exp",
@@ -34,8 +34,7 @@ def make_config(device):
             MODEL=dict(
                 method=method,
                 type=type,
-                t_span=20,
-                t_cutoff=15,
+                t_span=32,
                 image_size=image_size,
                 classes=classes,
                 model_type=model_type,
@@ -65,9 +64,8 @@ def make_config(device):
             ),
             TRAIN=dict(
                 method=method,
-                loss_function="LabelSmoothingCrossEntropy", #LabelSmoothingCrossEntropy or SoftTargetCrossEntropy
+                loss_function="LabelSmoothingCrossEntropy", 
                 label_smoothing=0.1,
-                training_loss_type="flow_matching",
                 optimizer_type="adamw",
                 lr=1.25e-4,
                 warmup_lr=1.25e-07,
@@ -93,7 +91,7 @@ def make_config(device):
             TEST=dict(
                 seed=0,
                 crop=True,
-                eval_freq=3,
+                eval_freq=5,
                 generative_freq=100,
                 checkpoint_freq=100,
             ),

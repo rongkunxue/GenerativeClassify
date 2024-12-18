@@ -1,7 +1,7 @@
 import wandb
 from easydict import EasyDict
 from accelerate import Accelerator
-from train_main import train
+from GenerativeClassify.classify.improved_classify.train import train
 
 def make_config(device):
     model_type="Diff"
@@ -9,7 +9,7 @@ def make_config(device):
     type=f"GenerativeClassifyUNet_{model_type}"
     classes = 200
     image_size = 64
-    project_name = f"A_{model_type}_{method}_Tinyimagnet"
+    project_name = f"B_{model_type}_{method}_Tinyimagnet"
     config = EasyDict(
         dict(
             PROJECT_NAME=project_name,
@@ -64,9 +64,8 @@ def make_config(device):
             ),
             TRAIN=dict(
                 method=method,
-                loss_function="LabelSmoothingCrossEntropy", #LabelSmoothingCrossEntropy or SoftTargetCrossEntropy
+                loss_function="LabelSmoothingCrossEntropy", 
                 label_smoothing=0.1,
-                training_loss_type="flow_matching",
                 
                 optimizer_type="adamw",
                 lr=1.25e-4,
@@ -114,4 +113,5 @@ if __name__ == "__main__":
     config.TRAIN.lr=config.TRAIN.lr*num_processes*config.DATA.batch_size/512
     config.TRAIN.warmup_lr=config.TRAIN.warmup_lr*num_processes*config.DATA.batch_size/512
     config.TRAIN.min_lr=config.TRAIN.min_lr*num_processes*config.DATA.batch_size/512
+    
     train(config, accelerator)

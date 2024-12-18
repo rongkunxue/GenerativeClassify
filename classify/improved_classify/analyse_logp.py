@@ -70,33 +70,6 @@ def load_model(path: str, model: torch.nn.Module, optimizer: torch.optim.Optimiz
     return last_iteration
 
 
-# # Utility class to track averages
-# class AverageMeter(object):
-#     """Computes and stores the average and current value"""
-
-#     def __init__(self, name, fmt=":f"):
-#         self.name = name
-#         self.fmt = fmt
-#         self.reset()
-
-#     def reset(self):
-#         """Reset all values to zero."""
-#         self.val = 0
-#         self.avg = 0
-#         self.sum = 0
-#         self.count = 0
-
-#     def update(self, val, n=1):
-#         """Update the meter with a new value."""
-#         self.val = val
-#         self.sum += val * n
-#         self.count += n
-#         self.avg = self.sum / self.count
-
-#     def __str__(self):
-#         """String representation of the meter."""
-#         return f"{self.name} {self.val{self.fmt}} ({self.avg{self.fmt}})"
-
 
 # Main function to perform picture analysis
 def picture_analysis(config, accelerator):
@@ -192,6 +165,7 @@ def picture_analysis(config, accelerator):
                     "nth": i-1,
                     "diffusion_model_train_epoch": diffusion_model_train_epoch, 
                 })
+            
             
 @torch.no_grad()
 # Main function to perform picture analysis
